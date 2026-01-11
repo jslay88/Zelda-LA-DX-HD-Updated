@@ -1,27 +1,87 @@
-# Copyrighted assets (users must provide their own)
-*.zip
-Links Awakening DX HD*.zip
+# =============================================================================
+# COPYRIGHTED CONTENT - DO NOT COMMIT
+# =============================================================================
+# Users must provide their own v1.0.0 game assets. These are copyrighted
+# and must NOT be committed to the repository.
+# =============================================================================
 
-# Build outputs
+# Original game zip
+*.zip
+
+# Build outputs and test directories
 publish/
 assets_original/
 zelda_ladxhd_build/
+release/
+test/
 
-# Game source build artifacts
+# =============================================================================
+# GAME SOURCE CODE BUILD ARTIFACTS
+# =============================================================================
+
 ladxhd_game_source_code/.vs/
 ladxhd_game_source_code/bin/
-ladxhd_game_source_code/Content/
-ladxhd_game_source_code/Data/
 ladxhd_game_source_code/obj/
 ladxhd_game_source_code/Publish/
 ladxhd_game_source_code_ui/
 
-# Migrate tool build artifacts
+# =============================================================================
+# CONTENT FOLDER - MIXED COPYRIGHTED AND SOURCE FILES
+# =============================================================================
+# TRACKED (our source code - use ! to un-ignore):
+#   - Shader/*.fx       = Shader source code
+#   - Content.mgcb      = Build configuration
+#   - Fonts/*.spritefont = Font definitions (XML, not copyrighted)
+#   - Light/*.atlas, Light/readme.txt = Metadata files
+#
+# IGNORED (copyrighted or build artifacts):
+#   - *.png, *.wav      = Copyrighted game assets
+#   - *.xnb             = Compiled content (build artifacts)
+#   - bin/, obj/        = Build directories
+#   - compiled/         = CI build output
+# =============================================================================
+
+# First, ignore the entire Content folder
+ladxhd_game_source_code/Content/
+
+# Then un-ignore specific source files we need to track
+!ladxhd_game_source_code/Content/
+!ladxhd_game_source_code/Content/Content.mgcb
+!ladxhd_game_source_code/Content/Shader/
+!ladxhd_game_source_code/Content/Shader/*.fx
+!ladxhd_game_source_code/Content/Fonts/
+!ladxhd_game_source_code/Content/Fonts/*.spritefont
+!ladxhd_game_source_code/Content/Light/
+!ladxhd_game_source_code/Content/Light/*.atlas
+!ladxhd_game_source_code/Content/Light/*.txt
+
+# Re-ignore build outputs even in un-ignored directories
+ladxhd_game_source_code/Content/bin/
+ladxhd_game_source_code/Content/obj/
+ladxhd_game_source_code/Content/compiled/
+ladxhd_game_source_code/Content/**/*.xnb
+ladxhd_game_source_code/Content/**/*.png
+ladxhd_game_source_code/Content/**/*.wav
+
+# =============================================================================
+# DATA FOLDER - ENTIRELY COPYRIGHTED
+# =============================================================================
+# The Data folder contains game maps, animations, music, etc.
+# All files are copyrighted and must NOT be committed.
+# =============================================================================
+
+ladxhd_game_source_code/Data/
+
+# =============================================================================
+# TOOL BUILD ARTIFACTS
+# =============================================================================
+
+# Migrate tool
 ladxhd_migrate_source_code/.vs/
 ladxhd_migrate_source_code/bin/
 ladxhd_migrate_source_code/obj/
 
-# Patcher tool build artifacts
+# Patcher tool
 ladxhd_patcher_source_code/.vs/
 ladxhd_patcher_source_code/bin/
 ladxhd_patcher_source_code/obj/

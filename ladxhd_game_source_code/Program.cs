@@ -42,6 +42,10 @@ namespace ProjectZ
 
             try
             {
+                // Check and install platform-correct shaders if needed
+                // This handles the case where v1.0.0 ships Windows shaders but we need DesktopGL on Linux
+                ShaderPatcher.EnsureCorrectShaders();
+                
                 // Check and auto-patch assets if needed
                 if (!AssetPatcher.CheckAndPatchAssets())
                 {

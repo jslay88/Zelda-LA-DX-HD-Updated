@@ -12,8 +12,14 @@ on:
         default: '1.5.2'
 
 jobs:
-  # Build DesktopGL Content (shaders, fonts) on Windows for Linux
-  build-desktopgl-content:
+  # =============================================================================
+  # Compile ALL Content (shaders, fonts, textures) for both platforms
+  # =============================================================================
+  # Shaders are NOT copyrighted - they're part of our source code.
+  # We compile them on Windows because mgfxc requires d3dcompiler_47.dll
+  # This works for both DirectX (Windows) and OpenGL (DesktopGL/Linux) targets.
+  # =============================================================================
+  build-content:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,35 +27,64 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '6.0.x'
+          dotnet-version: '8.0.x'
       
       - name: Install MGCB
         run: dotnet tool install -g dotnet-mgcb
       
-      - name: Build DesktopGL Content (Shaders only)
+      - name: Compile Windows Shaders (DirectX)
         working-directory: ladxhd_game_source_code/Content
+        shell: pwsh
         run: |
-          # Create output directory
-          mkdir -p desktopgl-shaders
+          New-Item -ItemType Directory -Force -Path "compiled/Windows/Shader"
           
-          # Build each shader for DesktopGL
           $shaders = Get-ChildItem -Path "Shader/*.fx"
           foreach ($shader in $shaders) {
             $name = $shader.BaseName
-            Write-Host "Building $name for DesktopGL..."
-            mgcb /platform:DesktopGL /build:"Shader/$($shader.Name)" /outputDir:desktopgl-shaders /intermediateDir:obj/DesktopGL
+            Write-Host "Building $name for Windows (DirectX)..."
+            mgcb /platform:Windows /profile:HiDef /importer:EffectImporter /processor:EffectProcessor /outputDir:compiled/Windows /intermediateDir:obj/Windows /build:"Shader/$($shader.Name)"
           }
           
-          # List compiled shaders
-          Get-ChildItem -Path "desktopgl-shaders" -Recurse
+          Write-Host ""
+          Write-Host "Windows shaders compiled:"
+          Get-ChildItem -Path "compiled/Windows/Shader" -Recurse
       
-      - name: Upload DesktopGL Content
+      - name: Compile DesktopGL Shaders (OpenGL)
+        working-directory: ladxhd_game_source_code/Content
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "compiled/DesktopGL/Shader"
+          
+          $shaders = Get-ChildItem -Path "Shader/*.fx"
+          foreach ($shader in $shaders) {
+            $name = $shader.BaseName
+            Write-Host "Building $name for DesktopGL (OpenGL)..."
+            mgcb /platform:DesktopGL /profile:HiDef /importer:EffectImporter /processor:EffectProcessor /outputDir:compiled/DesktopGL /intermediateDir:obj/DesktopGL /build:"Shader/$($shader.Name)"
+          }
+          
+          Write-Host ""
+          Write-Host "DesktopGL shaders compiled:"
+          Get-ChildItem -Path "compiled/DesktopGL/Shader" -Recurse
+      
+      - name: Upload Windows Content
         uses: actions/upload-artifact@v4
         with:
-          name: desktopgl-content
-          path: ladxhd_game_source_code/Content/desktopgl-shaders/
+          name: content-windows
+          path: ladxhd_game_source_code/Content/compiled/Windows/
+          retention-days: 1
+      
+      - name: Upload DesktopGL Content  
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-desktopgl
+          path: ladxhd_game_source_code/Content/compiled/DesktopGL/
+          retention-days: 1
 
+  # =============================================================================
+  # Build Windows Binary
+  # =============================================================================
   build-windows:
+    needs: [build-content]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +92,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '6.0.x'
+          dotnet-version: '8.0.x'
       
       - name: Restore dependencies
         working-directory: ladxhd_game_source_code
@@ -73,14 +108,28 @@ jobs:
             --self-contained true `
             -o ../publish/Windows
       
+      - name: Download Windows Shaders
+        uses: actions/download-artifact@v4
+        with:
+          name: content-windows
+          path: ./content-windows
+      
       - name: Package Windows Release
+        shell: pwsh
         run: |
-          # Remove Content/Data folders if they exist (shouldn't be there but safety check)
-          if (Test-Path "publish/Windows/Content") { Remove-Item -Recurse -Force "publish/Windows/Content" }
-          if (Test-Path "publish/Windows/Data") { Remove-Item -Recurse -Force "publish/Windows/Data" }
+          # Include pre-compiled Windows shaders in Shaders-Windows folder
+          # ShaderPatcher will auto-install these to Content/Shader/ on first run
+          New-Item -ItemType Directory -Force -Path "publish/Windows/Shaders-Windows"
+          Copy-Item -Path "content-windows/Shader/*" -Destination "publish/Windows/Shaders-Windows/" -Force
           
-          # Create zip with just the executable
-          Compress-Archive -Path "publish/Windows/*" -DestinationPath "LADXHD-Windows-x64.zip"
+          # Also include setup script
+          Copy-Item -Path "setup_linux_assets.sh" -Destination "publish/Windows/" -ErrorAction SilentlyContinue
+          
+          # Remove debug files
+          Remove-Item -Path "publish/Windows/*.pdb" -Force -ErrorAction SilentlyContinue
+          
+          # Create zip
+          Compress-Archive -Path "publish/Windows/*" -DestinationPath "LADXHD-Windows-x64.zip" -Force
       
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -88,8 +137,11 @@ jobs:
           name: windows-build
           path: LADXHD-Windows-x64.zip
 
+  # =============================================================================
+  # Build Linux Binary
+  # =============================================================================
   build-linux:
-    needs: [build-desktopgl-content]
+    needs: [build-content]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -97,7 +149,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '6.0.x'
+          dotnet-version: '8.0.x'
       
       - name: Restore dependencies
         working-directory: ladxhd_game_source_code
@@ -113,23 +165,28 @@ jobs:
             --self-contained true \
             -o ../publish/Linux
       
-      - name: Download DesktopGL Content
+      - name: Download DesktopGL Shaders
         uses: actions/download-artifact@v4
         with:
-          name: desktopgl-content
-          path: ./desktopgl-content
+          name: content-desktopgl
+          path: ./content-desktopgl
       
       - name: Package Linux Release
         run: |
-          # Remove Content/Data folders if they exist (shouldn't be there but safety check)
-          rm -rf publish/Linux/Content publish/Linux/Data 2>/dev/null || true
+          # Include pre-compiled DesktopGL shaders in Shaders-DesktopGL folder
+          # ShaderPatcher will auto-install these to Content/Shader/ on first run
+          mkdir -p publish/Linux/Shaders-DesktopGL
+          cp -r content-desktopgl/Shader/* publish/Linux/Shaders-DesktopGL/
           
-          # Create DesktopGL-Shaders folder with pre-compiled shaders for Linux
-          mkdir -p publish/Linux/DesktopGL-Shaders
-          cp -r desktopgl-content/* publish/Linux/DesktopGL-Shaders/ || true
+          # Include setup script for advanced users
+          cp setup_linux_assets.sh publish/Linux/ || true
+          
+          # Remove debug files
+          rm -f publish/Linux/*.pdb 2>/dev/null || true
           
           # Make executable
           chmod +x "publish/Linux/Link's Awakening DX HD"
+          chmod +x publish/Linux/setup_linux_assets.sh 2>/dev/null || true
           
           # Create tarball
           tar -czvf LADXHD-Linux-x64.tar.gz -C publish/Linux .
@@ -140,6 +197,9 @@ jobs:
           name: linux-build
           path: LADXHD-Linux-x64.tar.gz
 
+  # =============================================================================
+  # Create GitHub Release
+  # =============================================================================
   release:
     needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
@@ -181,34 +241,74 @@ jobs:
             
             ### ⚠️ Important: Original Game Assets Required
             
-            This release contains **only the game binary** with embedded patches.
+            This release contains the **game binary with pre-compiled shaders** and embedded patches.
             
             **You must provide your own v1.0.0 game assets** (Content and Data folders) from the original release.
+            
+            ---
             
             ### Installation
             
             #### Windows
             1. Download and extract `LADXHD-Windows-x64.zip`
-            2. Copy the `Content` and `Data` folders from your original **Link's Awakening DX HD v1.0.0** installation
-            3. Run the game - it will automatically patch your assets on first launch
+            2. Copy the `Content` and `Data` folders from your **Link's Awakening DX HD v1.0.0** installation
+            3. Run the game
+               - Shaders will be automatically installed from `Shaders-Windows/`
+               - Assets will be automatically patched on first launch
             
             #### Linux
             1. Download and extract `LADXHD-Linux-x64.tar.gz`
-            2. Copy the `Content` and `Data` folders from your original **Link's Awakening DX HD v1.0.0** installation
-            3. **Important**: Copy the contents of the included `DesktopGL-Shaders` folder into `Content/Shader/` (replacing the Windows shaders)
-            4. Run the game - it will automatically patch your assets on first launch
+            2. Copy the `Content` and `Data` folders from your **Link's Awakening DX HD v1.0.0** installation
+            3. Install `xdelta3`:
+               - **Arch Linux**: `sudo pacman -S xdelta3`
+               - **Ubuntu/Debian**: `sudo apt install xdelta3`
+               - **Fedora**: `sudo dnf install xdelta3`
+            4. Run the game
+               - DesktopGL shaders will be automatically installed from `Shaders-DesktopGL/`
+               - Data assets will be automatically patched on first launch
             
-            ### Linux Requirements
+            ---
             
-            - `xdelta3` for auto-patching:
-              - **Arch Linux**: `sudo pacman -S xdelta3`
-              - **Ubuntu/Debian**: `sudo apt install xdelta3`
-              - **Fedora**: `sudo dnf install xdelta3`
+            ### What's Included
+            
+            | Platform | Binary | Shaders | Auto-Patching |
+            |----------|--------|---------|---------------|
+            | Windows | Self-contained .exe | DirectX (in `Shaders-Windows/`) | Content + Data |
+            | Linux | Self-contained binary | OpenGL (in `Shaders-DesktopGL/`) | Data only* |
+            
+            *Linux skips Content patching because v1.0.0 Content has Windows XNB format. The bundled DesktopGL shaders replace the incompatible Windows shaders.
+            
+            ---
+            
+            ### Upgrading from Previous Versions
+            
+            The game automatically handles upgrades:
+            - Original v1.0.0 files are backed up to `Data/Backup/` on first run
+            - When upgrading, v1.0.0 is restored from backup before applying new patches
+            - This ensures patches always work regardless of your current version
+            
+            ---
+            
+            ### Troubleshooting
+            
+            **"MGFX effect was built for a different platform"**
+            - The DesktopGL shaders weren't installed. Check that `Shaders-DesktopGL/` folder exists and run the game again.
+            
+            **"xdelta3 not found"**
+            - Install xdelta3 using your package manager (see Linux instructions above)
+            
+            **Game crashes on startup (Linux)**
+            - Ensure you have SDL2 and OpenAL installed
+            - Try running from terminal to see error messages
+            
+            ---
             
             ### Downloads
             
-            - **Windows (x64)**: `LADXHD-Windows-x64.zip`
-            - **Linux (x64)**: `LADXHD-Linux-x64.tar.gz` (includes DesktopGL shaders)
+            | Platform | File | Size |
+            |----------|------|------|
+            | Windows x64 | `LADXHD-Windows-x64.zip` | ~50MB |
+            | Linux x64 | `LADXHD-Linux-x64.tar.gz` | ~50MB |
           files: |
             ./release/LADXHD-Windows-x64.zip
             ./release/LADXHD-Linux-x64.tar.gz

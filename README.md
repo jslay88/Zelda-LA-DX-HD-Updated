@@ -18,21 +18,29 @@ Some assets have been updated, but I have created tooling to make migration easi
 
 The easiest way to play is using the **auto-patching game binary** from the [Releases](https://github.com/BigheadSMZ/Zelda-LA-DX-HD-Updated/releases) page:
 
-1. **Download** the game binary for your platform (`game-v*` releases):
-   - Windows: `LADXHD-Windows-x64.zip`
-   - Linux: `LADXHD-Linux-x64.tar.gz`
+### Windows
 
+1. **Download** `LADXHD-Windows-x64.zip` from the releases page
 2. **Extract** the archive
+3. **Copy your v1.0.0 assets**: Copy the `Content` and `Data` folders from your original **Link's Awakening DX HD v1.0.0** installation
+4. **Run the game** - everything is automatic!
+   - ✅ Shaders auto-installed from `Shaders-Windows/`
+   - ✅ Assets auto-patched on first launch
 
-3. **Copy your v1.0.0 assets**:
-   - Copy the `Content` and `Data` folders from your original **Link's Awakening DX HD v1.0.0** installation into the same directory as the game executable
+### Linux
 
-4. **Run the game** - it will automatically patch your assets on first launch!
+1. **Download** `LADXHD-Linux-x64.tar.gz` from the releases page
+2. **Extract** the archive
+3. **Install xdelta3** (for auto-patching):
+   - Arch Linux: `sudo pacman -S xdelta3`
+   - Ubuntu/Debian: `sudo apt install xdelta3`
+   - Fedora: `sudo dnf install xdelta3`
+4. **Copy your v1.0.0 assets**: Copy the `Content` and `Data` folders from your original **Link's Awakening DX HD v1.0.0** installation
+5. **Run the game** - everything is automatic!
+   - ✅ DesktopGL shaders auto-installed from `Shaders-DesktopGL/`
+   - ✅ Data files auto-patched on first launch
 
-> 💡 **Linux users**: You'll need `xdelta3` installed for auto-patching:
-> - Arch Linux: `sudo pacman -S xdelta3`
-> - Ubuntu/Debian: `sudo apt install xdelta3`
-> - Fedora: `sudo dnf install xdelta3`
+> 💡 **Note**: The v1.0.0 release ships with Windows/DirectX shaders which don't work on Linux. The Linux release includes pre-compiled DesktopGL/OpenGL shaders that are automatically installed on first run.
 
 ## Alternative: Using the Standalone Patcher
 

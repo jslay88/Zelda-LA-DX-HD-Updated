@@ -261,6 +261,88 @@ Some files are created by applying patches to a base file:
 - Fix: Rename affected `.ani` files to match code references
 - Known issue: `Data/Animations/Enemies/spiny Beetle.ani` → `spiny beetle.ani`
 
+### Patching fails on already-patched game
+- The auto-patcher uses a backup system to handle upgrades
+- v1.0.0 files are backed up to `Data/Backup/` on first run
+- On upgrades, files are restored from backup before patching
+- If backup folder is missing/corrupted, restore v1.0.0 Content/Data manually
+
+---
+
+## Auto-Patching & Upgrade System
+
+The game includes an auto-patching system (`AssetPatcher.cs`) that:
+
+### First Launch (v1.0.0)
+1. Detects missing `.patched_version` file
+2. **Backs up** all patchable v1.0.0 files to `Data/Backup/`
+3. Applies xdelta patches to update files to current version
+4. Creates derived files (language variants, redux textures)
+5. Writes `.patched_version` with current version
+
+### Upgrade (e.g., v1.1.4 → v1.5.2)
+1. Detects version mismatch in `.patched_version`
+2. **Restores** v1.0.0 files from `Data/Backup/`
+3. Applies patches (always from v1.0.0 base)
+4. Creates derived files
+5. Updates `.patched_version`
+
+### Why Backup/Restore?
+- xdelta patches are binary diffs from v1.0.0 specifically
+- Applying v1.0.0→v1.5.2 patch to v1.1.4 file would fail
+- Restoring v1.0.0 ensures patches always succeed
+
+### Backup Location
+```
+Data/
+├── Backup/           ← v1.0.0 originals
+│   ├── eng.lng
+│   ├── ui.png
+│   └── ...
+├── Languages/        ← Current version (patched)
+└── ...
+```
+
+### Special Cases
+- **Derived files**: Never backed up (regenerated from base files)
+- **Obsolete files**: Automatically deleted (e.g., renamed dungeon files)
+- **dungeon3_1.map**: Special handling for historical rename
+
+---
+
+## Shader Auto-Installation System
+
+The game includes `ShaderPatcher.cs` that automatically installs platform-correct shaders:
+
+### Problem
+- v1.0.0 ships with Windows/DirectX shaders in `Content/Shader/`
+- Linux requires DesktopGL/OpenGL shaders
+- Users shouldn't have to manually replace files
+
+### Solution
+- Releases include pre-compiled shaders in platform-specific folders:
+  - Windows: `Shaders-Windows/`
+  - Linux: `Shaders-DesktopGL/`
+- On first run, `ShaderPatcher.EnsureCorrectShaders()`:
+  1. Checks if `Content/Shader/` exists
+  2. Checks platform marker file (`.shader_platform`)
+  3. If shaders are wrong platform, copies from bundled folder
+  4. Writes platform marker for future runs
+
+### Marker File
+- Location: `Content/Shader/.shader_platform`
+- Contents: `Windows` or `DesktopGL`
+- Created after shaders are installed
+- Prevents re-installation on subsequent runs
+
+### Startup Order
+```
+Program.Main()
+  └─> ShaderPatcher.EnsureCorrectShaders()  ← Install correct shaders
+  └─> AssetPatcher.CheckAndPatchAssets()    ← Patch Data files
+  └─> new Game1().Run()                     ← Start game
+```
+
 ---
 
 ## Project Structure

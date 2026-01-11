@@ -10,14 +10,23 @@ namespace ProjectZ.InGame.Things
     /// <summary>
     /// Auto-patches game assets on first launch using embedded xdelta patches.
     /// Users must provide their own v1.0.0 Content/Data folders.
+    /// 
+    /// BACKUP SYSTEM:
+    /// - On first run, v1.0.0 files are backed up to Data/Backup/
+    /// - On subsequent runs (upgrades), v1.0.0 is restored from backup before patching
+    /// - This ensures patches always work regardless of current version
     /// </summary>
     public static class AssetPatcher
     {
         private const string VersionFile = ".patched_version";
         private const string CurrentVersion = "1.5.2";
         
+        // Backup folder stores v1.0.0 originals for future upgrades
+        private const string BackupFolderName = "Backup";
+        
         // Multi-file patches: some files generate multiple output files from one source
-        private static readonly Dictionary<string, string[]> FileTargets = new Dictionary<string, string[]>
+        // Key format: "filename" or "subdir/filename" for disambiguation
+        private static readonly Dictionary<string, string[]> FileTargets = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
         {
             { "eng.lng", new[] { "deu.lng", "esp.lng", "fre.lng", "ind.lng", "ita.lng", "por.lng", "rus.lng" } },
             { "dialog_eng.lng", new[] { "dialog_deu.lng", "dialog_esp.lng", "dialog_fre.lng", "dialog_ind.lng", "dialog_ita.lng", "dialog_por.lng", "dialog_rus.lng" } },
@@ -36,12 +45,44 @@ namespace ProjectZ.InGame.Things
             { "musicOverworld.data", new[] { "musicOverworldClassic.data" } },
             { "dungeon3_1.map", new[] { "dungeon3.map" } },
             { "dungeon3_1.map.data", new[] { "dungeon3.map.data" } },
-            { "BowWow.ani", new[] { "bowwow_water.ani" } }
+            { "NPCs/BowWow.ani", new[] { "bowwow_water.ani" } }  // Use path to disambiguate from Sequences/bowWow.ani
+        };
+
+        // Files that are derived and should NOT be backed up (they're created from base files)
+        private static readonly HashSet<string> DerivedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        
+        // Obsolete files that should be removed (cause problems if they exist)
+        private static readonly string[] ObsoleteFiles = new[]
+        {
+            "cave bird.map.data", "dungeon_end.map.data", "dungeon3_1.map", "dungeon3_1.map.data",
+            "dungeon3_2.map", "dungeon3_2.map.data", "dungeon3_3.map", "dungeon3_3.map.data",
+            "dungeon3_4.map", "dungeon3_4.map.data", "dungeon 7_2d.map.data",
+            "three_1.txt", "three_2.txt", "three_3.txt"
+        };
+        
+        // Case sensitivity fixes for Linux - files that need to be renamed
+        // Format: "current name" -> "expected name" (lowercase)
+        private static readonly Dictionary<string, string> CaseSensitivityFixes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "spiny Beetle.ani", "spiny beetle.ani" }
         };
 
         private static string _gameDirectory;
         private static string _tempDirectory;
+        private static string _backupDirectory;
         private static string _xdeltaPath;
+
+        static AssetPatcher()
+        {
+            // Build set of all derived file names
+            foreach (var targets in FileTargets.Values)
+            {
+                foreach (var target in targets)
+                {
+                    DerivedFiles.Add(target);
+                }
+            }
+        }
 
         /// <summary>
         /// Check if assets need patching and apply patches if necessary.
@@ -57,6 +98,7 @@ namespace ProjectZ.InGame.Things
                 string contentPath = Path.Combine(_gameDirectory, "Content");
                 string dataPath = Path.Combine(_gameDirectory, "Data");
                 string versionPath = Path.Combine(_gameDirectory, VersionFile);
+                _backupDirectory = Path.Combine(dataPath, BackupFolderName);
 
                 // Check if Content/Data folders exist
                 if (!Directory.Exists(contentPath) || !Directory.Exists(dataPath))
@@ -77,7 +119,7 @@ namespace ProjectZ.InGame.Things
                     {
                         return true; // Already patched
                     }
-                    Console.WriteLine($"Assets version {patchedVersion} -> {CurrentVersion}, patching...");
+                    Console.WriteLine($"Assets version {patchedVersion} -> {CurrentVersion}, upgrading...");
                 }
                 else
                 {
@@ -128,6 +170,7 @@ namespace ProjectZ.InGame.Things
             try
             {
                 Directory.CreateDirectory(_tempDirectory);
+                Directory.CreateDirectory(_backupDirectory);
                 
                 // Extract xdelta3 binary
                 if (!ExtractXDelta())
@@ -143,97 +186,177 @@ namespace ProjectZ.InGame.Things
                     .ToList();
 
                 // Build a lookup: normalized filename -> resource name
-                // This handles the space-to-underscore conversion MSBuild does
                 var patchLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var resourceName in patchResources)
                 {
                     string patchFileName = ExtractPatchFileName(resourceName);
-                    // Store both the raw name and a version with underscores replaced by spaces
                     patchLookup[patchFileName] = resourceName;
                     patchLookup[patchFileName.Replace("_", " ")] = resourceName;
                 }
 
                 Console.WriteLine($"Found {patchResources.Count} patches available...");
 
-                int patchedCount = 0;
-                int skippedCount = 0;
+                // Clean up bad backup files (derived files shouldn't be in backup)
+                RemoveBadBackupFiles();
 
-                // Build a list of all files in Content and Data
-                var allFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                int patchedCount = 0;
+
+                // Build a list of all files to process
+                var filesToProcess = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 
-#if WINDOWS
-                // On Windows, patch Content folder (XNB files are Windows format)
+                // Patch Content folder (fonts, textures, etc. - but NOT shaders on Linux)
                 foreach (var file in Directory.GetFiles(contentPath, "*", SearchOption.AllDirectories))
                 {
-                    allFiles[Path.GetFileName(file)] = file;
-                }
-#else
-                // On Linux, skip Content folder - it requires:
-                // 1. Shaders compiled for OpenGL (via mgfxc)
-                // 2. XNB platform bytes changed to DesktopGL
-                // Use setup_linux_assets.sh for Content preparation instead
-                Console.WriteLine("Note: Skipping Content folder on Linux (use setup_linux_assets.sh)");
+                    // Skip files in backup folder
+                    if (file.IndexOf(Path.DirectorySeparatorChar + BackupFolderName + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0)
+                        continue;
+                    
+#if !WINDOWS
+                    // On Linux, skip shader XNBs - they need to be DesktopGL compiled
+                    // (handled separately by ShaderPatcher)
+                    if (file.IndexOf(Path.DirectorySeparatorChar + "Shader" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0)
+                        continue;
 #endif
+                    // Use parent/filename as key to avoid collisions (e.g., NPCs/BowWow.ani vs Sequences/bowWow.ani)
+                    string parentDir = Path.GetFileName(Path.GetDirectoryName(file));
+                    string key = string.IsNullOrEmpty(parentDir) ? Path.GetFileName(file) : parentDir + "/" + Path.GetFileName(file);
+                    filesToProcess[key] = file;
+                }
                 foreach (var file in Directory.GetFiles(dataPath, "*", SearchOption.AllDirectories))
                 {
-                    allFiles[Path.GetFileName(file)] = file;
+                    // Skip files in backup folder
+                    if (file.IndexOf(Path.DirectorySeparatorChar + BackupFolderName + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0)
+                        continue;
+                    // Use parent/filename as key to avoid collisions
+                    string parentDir = Path.GetFileName(Path.GetDirectoryName(file));
+                    string key = string.IsNullOrEmpty(parentDir) ? Path.GetFileName(file) : parentDir + "/" + Path.GetFileName(file);
+                    filesToProcess[key] = file;
                 }
 
-                // First pass: Apply patches to existing files
-                foreach (var kvp in allFiles)
+                // First pass: Backup/restore and patch existing files
+                foreach (var kvp in filesToProcess)
                 {
-                    string fileName = kvp.Key;
+                    string fileKey = kvp.Key;      // May be "parent/filename" or just "filename"
                     string filePath = kvp.Value;
+                    
+                    // Extract just the filename (patches use filename only)
+                    string fileName = fileKey.Contains("/") ? fileKey.Substring(fileKey.LastIndexOf('/') + 1) : fileKey;
+                    
+                    
+                    // Skip derived files (they're created fresh from base files)
+                    if (DerivedFiles.Contains(fileName))
+                        continue;
                     
                     // Look for a patch for this file
                     string patchKey = fileName + ".xdelta";
                     if (!patchLookup.TryGetValue(patchKey, out string resourceName))
                     {
-                        // Try with underscores converted to spaces
                         patchKey = fileName.Replace("_", " ") + ".xdelta";
                         patchLookup.TryGetValue(patchKey, out resourceName);
                     }
                     
                     if (resourceName != null)
                     {
+                        string backupPath = Path.Combine(_backupDirectory, fileName);
+                        
+                        // BACKUP/RESTORE LOGIC:
+                        // - If no backup exists: This is v1.0.0, back it up before patching
+                        // - If backup exists: This is an upgrade, restore v1.0.0 then patch
+                        if (!File.Exists(backupPath))
+                        {
+                            // First time patching this file - backup the v1.0.0 original
+                            try
+                            {
+                                File.Copy(filePath, backupPath, false);
+                                Console.WriteLine($"  BACKUP: {fileName}");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"  WARN: Could not backup {fileName}: {ex.Message}");
+                            }
+                        }
+                        else
+                        {
+                            // Upgrade scenario - restore v1.0.0 from backup before patching
+                            try
+                            {
+                                File.Copy(backupPath, filePath, true);
+                                Console.WriteLine($"  RESTORE: {fileName}");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"  WARN: Could not restore {fileName}: {ex.Message}");
+                            }
+                        }
+                        
+                        // Now apply the patch (source is always v1.0.0)
                         if (ApplyPatchFromResource(assembly, resourceName, filePath, filePath))
                         {
                             patchedCount++;
                         }
                     }
-                }
-                
-                // Second pass: Create new files from multi-file patches
-                foreach (var kvp in FileTargets)
-                {
-                    string sourceFileName = kvp.Key;
-                    string[] derivedFileNames = kvp.Value;
                     
-                    if (!allFiles.TryGetValue(sourceFileName, out string sourceFilePath))
-                        continue;
-                        
-                    string sourceDir = Path.GetDirectoryName(sourceFilePath);
+                    // Handle multi-file patches (create derived files from this source)
+                    // IMPORTANT: Use the v1.0.0 backup as the source, NOT the patched file!
+                    // Derived file patches are created from v1.0.0 originals.
+                    // FileTargets can use either just filename or "subdir/filename" for disambiguation
+                    string[] derivedFileNames = null;
                     
-                    foreach (var derivedFileName in derivedFileNames)
+                    // Try with the full key first (e.g., "NPCs/BowWow.ani")
+                    if (!FileTargets.TryGetValue(fileKey, out derivedFileNames))
                     {
-                        // Look for a patch for this derived file
-                        string patchKey = derivedFileName + ".xdelta";
-                        if (!patchLookup.TryGetValue(patchKey, out string resourceName))
-                        {
-                            patchKey = derivedFileName.Replace("_", " ") + ".xdelta";
-                            patchLookup.TryGetValue(patchKey, out resourceName);
-                        }
+                        // Fall back to just filename
+                        FileTargets.TryGetValue(fileName, out derivedFileNames);
+                    }
+                    
+                    if (derivedFileNames != null)
+                    {
+                        string sourceDir = Path.GetDirectoryName(filePath);
+                        string backupPath = Path.Combine(_backupDirectory, fileName);
                         
-                        if (resourceName != null)
+                        // Use backup (v1.0.0) as source if available, otherwise use the current file
+                        // (e.g., BowWow.ani has no patch but bowwow_water.ani is derived from it)
+                        string sourceForDerived = File.Exists(backupPath) ? backupPath : filePath;
+                        
+                        
+                        foreach (var derivedFileName in derivedFileNames)
                         {
-                            string derivedFilePath = Path.Combine(sourceDir, derivedFileName);
-                            if (ApplyPatchFromResource(assembly, resourceName, sourceFilePath, derivedFilePath))
+                            patchKey = derivedFileName + ".xdelta";
+                            if (!patchLookup.TryGetValue(patchKey, out resourceName))
                             {
-                                patchedCount++;
+                                patchKey = derivedFileName.Replace("_", " ") + ".xdelta";
+                                patchLookup.TryGetValue(patchKey, out resourceName);
+                            }
+                            
+                            if (resourceName != null)
+                            {
+                                string derivedFilePath = Path.Combine(sourceDir, derivedFileName);
+                                if (ApplyPatchFromResource(assembly, resourceName, sourceForDerived, derivedFilePath))
+                                {
+                                    patchedCount++;
+                                }
+                            }
+                            else
+                            {
+                                Console.WriteLine($"    WARN: No patch found for derived file {derivedFileName}");
                             }
                         }
                     }
                 }
+
+                // Special fix for dungeon3 (historical issue - dungeon3_1.map was renamed)
+                Dungeon3PatchFix(patchLookup, assembly);
+
+                // Clean up derived files from backup (they shouldn't be there)
+                RemoveBadBackupFiles();
+                
+                // Remove obsolete files that may cause problems
+                RemoveObsoleteFiles(dataPath);
+                
+#if !WINDOWS
+                // Fix case sensitivity issues on Linux
+                FixCaseSensitivity(dataPath);
+#endif
 
                 Console.WriteLine($"Patching complete: {patchedCount} files patched");
                 return true;
@@ -245,54 +368,126 @@ namespace ProjectZ.InGame.Things
             }
         }
 
-        private static string FindSourceFileForTarget(string targetFileName, Dictionary<string, string> allFiles)
+        /// <summary>
+        /// Remove derived files from backup folder - they shouldn't be there
+        /// as they're created fresh from the base v1.0.0 files each time.
+        /// </summary>
+        private static void RemoveBadBackupFiles()
         {
-            foreach (var kvp in FileTargets)
+            if (!Directory.Exists(_backupDirectory))
+                return;
+                
+            foreach (var file in Directory.GetFiles(_backupDirectory))
             {
-                if (kvp.Value.Contains(targetFileName, StringComparer.OrdinalIgnoreCase))
+                string fileName = Path.GetFileName(file);
+                if (DerivedFiles.Contains(fileName))
                 {
-                    if (allFiles.ContainsKey(kvp.Key))
+                    try
                     {
-                        return kvp.Key;
+                        File.Delete(file);
+                        Console.WriteLine($"  CLEANUP: Removed {fileName} from backup");
+                    }
+                    catch { }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Remove obsolete files that may cause problems if they exist.
+        /// </summary>
+        private static void RemoveObsoleteFiles(string dataPath)
+        {
+            var obsoleteSet = new HashSet<string>(ObsoleteFiles, StringComparer.OrdinalIgnoreCase);
+            
+            foreach (var file in Directory.GetFiles(dataPath, "*", SearchOption.AllDirectories))
+            {
+                // Skip backup folder
+                if (file.IndexOf(Path.DirectorySeparatorChar + BackupFolderName + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0)
+                    continue;
+                    
+                string fileName = Path.GetFileName(file);
+                if (obsoleteSet.Contains(fileName))
+                {
+                    try
+                    {
+                        File.Delete(file);
+                        Console.WriteLine($"  REMOVED: {fileName} (obsolete)");
+                    }
+                    catch { }
+                }
+            }
+        }
+
+#if !WINDOWS
+        /// <summary>
+        /// Fix case sensitivity issues on Linux. Some files have mixed case names
+        /// but the code expects lowercase (e.g., "spiny Beetle.ani" -> "spiny beetle.ani").
+        /// </summary>
+        private static void FixCaseSensitivity(string dataPath)
+        {
+            foreach (var file in Directory.GetFiles(dataPath, "*", SearchOption.AllDirectories))
+            {
+                // Skip backup folder
+                if (file.IndexOf(Path.DirectorySeparatorChar + BackupFolderName + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0)
+                    continue;
+                    
+                string fileName = Path.GetFileName(file);
+                if (CaseSensitivityFixes.TryGetValue(fileName, out string correctName))
+                {
+                    string correctPath = Path.Combine(Path.GetDirectoryName(file), correctName);
+                    
+                    // Only rename if the correct name doesn't already exist
+                    if (!File.Exists(correctPath))
+                    {
+                        try
+                        {
+                            File.Move(file, correctPath);
+                            Console.WriteLine($"  RENAMED: {fileName} -> {correctName} (case fix)");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"  WARN: Could not rename {fileName}: {ex.Message}");
+                        }
                     }
                 }
             }
-            return null;
+        }
+#endif
+
+        /// <summary>
+        /// Special fix for dungeon3 - the file was renamed from dungeon3_1.map to dungeon3.map
+        /// but we need to patch from the backup of the original name.
+        /// </summary>
+        private static void Dungeon3PatchFix(Dictionary<string, string> patchLookup, Assembly assembly)
+        {
+            string d3backup = Path.Combine(_backupDirectory, "dungeon3_1.map");
+            
+            if (File.Exists(d3backup))
+            {
+                // Patch dungeon3.map from dungeon3_1.map backup
+                if (patchLookup.TryGetValue("dungeon3.map.xdelta", out string resourceName))
+                {
+                    string targetPath = Path.Combine(_gameDirectory, "Data", "Maps", "dungeon3.map");
+                    ApplyPatchFromResource(assembly, resourceName, d3backup, targetPath);
+                    Console.WriteLine("  SPECIAL: Created dungeon3.map from dungeon3_1.map backup");
+                }
+            }
         }
 
         private static string ExtractPatchFileName(string resourceName)
         {
-            // Resource names are like "ProjectZ.Patches.filename.xdelta"
-            // MSBuild replaces spaces with underscores in resource names
-            // We need to extract "filename.xdelta" and restore spaces
-            
             const string prefix = "ProjectZ.Patches.";
             if (resourceName.StartsWith(prefix))
             {
-                // Return the filename part, converting underscores back to spaces
-                // Note: this is a heuristic - original filenames with underscores will be affected
                 return resourceName.Substring(prefix.Length);
             }
             
-            // Fallback: get the last two parts (filename.xdelta)
             var parts = resourceName.Split('.');
             if (parts.Length >= 2)
             {
                 return parts[parts.Length - 2] + "." + parts[parts.Length - 1];
             }
             return resourceName;
-        }
-        
-        /// <summary>
-        /// Gets the original filename from a resource name, handling space-to-underscore conversion.
-        /// </summary>
-        private static string GetOriginalFileName(string patchFileName)
-        {
-            // Remove .xdelta extension
-            string baseName = patchFileName.EndsWith(".xdelta", StringComparison.OrdinalIgnoreCase) 
-                ? patchFileName.Substring(0, patchFileName.Length - 7) 
-                : patchFileName;
-            return baseName;
         }
 
         private static bool ApplyPatchFromResource(Assembly assembly, string resourceName, string sourceFile, string outputFile)
@@ -303,7 +498,11 @@ namespace ProjectZ.InGame.Things
                 string patchFile = Path.Combine(_tempDirectory, Path.GetFileName(resourceName));
                 using (var stream = assembly.GetManifestResourceStream(resourceName))
                 {
-                    if (stream == null) return false;
+                    if (stream == null) 
+                    {
+                        Console.WriteLine($"  FAILED: {Path.GetFileName(outputFile)} - resource stream is null for {resourceName}");
+                        return false;
+                    }
                     using (var fileStream = File.Create(patchFile))
                     {
                         stream.CopyTo(fileStream);
@@ -313,22 +512,34 @@ namespace ProjectZ.InGame.Things
                 // Create temp output file
                 string tempOutput = Path.Combine(_tempDirectory, "output_" + Path.GetFileName(outputFile));
 
+                // Verify source file exists
+                if (!File.Exists(sourceFile))
+                {
+                    Console.WriteLine($"  FAILED: {Path.GetFileName(outputFile)} - source file not found: {sourceFile}");
+                    return false;
+                }
+
                 // Apply patch using xdelta3
                 var result = RunXDelta(sourceFile, patchFile, tempOutput);
                 
                 if (result && File.Exists(tempOutput))
                 {
+                    // Ensure output directory exists
+                    Directory.CreateDirectory(Path.GetDirectoryName(outputFile));
+                    
                     // Replace original file with patched version
                     File.Copy(tempOutput, outputFile, true);
                     File.Delete(tempOutput);
+                    Console.WriteLine($"  PATCHED: {Path.GetFileName(outputFile)}");
                     return true;
                 }
-
+                
+                Console.WriteLine($"  FAILED: {Path.GetFileName(outputFile)} - xdelta3 failed or output missing");
                 return false;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to apply patch {resourceName}: {ex.Message}");
+                Console.WriteLine($"  FAILED: {Path.GetFileName(outputFile)} - {ex.Message}");
                 return false;
             }
         }
@@ -337,6 +548,7 @@ namespace ProjectZ.InGame.Things
         {
             try
             {
+                Directory.CreateDirectory(_tempDirectory);
                 var assembly = Assembly.GetExecutingAssembly();
                 
 #if WINDOWS
@@ -409,12 +621,21 @@ namespace ProjectZ.InGame.Things
                     Arguments = $"-d -f -s \"{sourceFile}\" \"{patchFile}\" \"{outputFile}\"",
                     UseShellExecute = false,
                     RedirectStandardError = true,
+                    RedirectStandardOutput = true,
                     CreateNoWindow = true
                 };
 
                 using (var process = Process.Start(psi))
                 {
+                    string stderr = process.StandardError.ReadToEnd();
+                    string stdout = process.StandardOutput.ReadToEnd();
                     process.WaitForExit();
+                    
+                    if (process.ExitCode != 0)
+                    {
+                        Console.WriteLine($"    xdelta3 exit={process.ExitCode}: {stderr}");
+                    }
+                    
                     return process.ExitCode == 0;
                 }
             }

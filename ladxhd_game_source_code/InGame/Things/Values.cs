@@ -40,8 +40,33 @@ namespace ProjectZ.InGame.Things
         public static Color[] SkirtColors = { new Color(16, 168, 64), new Color(0, 38, 255), new Color(255, 0, 0) };
 
         public static string WorkingDirectory = AppContext.BaseDirectory;
-        public static string AppDataFolder = Environment.ExpandEnvironmentVariables("%LocalAppData%");
+        public static string AppDataFolder = GetAppDataFolder();
         public static string PathSaveFolder = SaveManager.GetSaveFilePath();
+
+        /// <summary>
+        /// Gets the appropriate application data folder for the current platform.
+        /// Windows: %LocalAppData% (e.g., C:\Users\X\AppData\Local)
+        /// Linux/macOS: $XDG_DATA_HOME or ~/.local/share
+        /// </summary>
+        private static string GetAppDataFolder()
+        {
+#if WINDOWS
+            return Environment.ExpandEnvironmentVariables("%LocalAppData%");
+#else
+            // Use XDG Base Directory Specification for Linux/macOS
+            // XDG_DATA_HOME defaults to ~/.local/share
+            string xdgDataHome = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+            if (!string.IsNullOrEmpty(xdgDataHome))
+                return xdgDataHome;
+            
+            string home = Environment.GetEnvironmentVariable("HOME");
+            if (!string.IsNullOrEmpty(home))
+                return Path.Combine(home, ".local", "share");
+            
+            // Fallback to current directory if nothing else works
+            return AppContext.BaseDirectory;
+#endif
+        }
 
         public static string PathContentFolder = "Data";
         public static string PathLanguageFolder => Path.Combine(PathContentFolder, "Languages");

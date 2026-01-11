@@ -29,14 +29,28 @@ namespace ProjectZ.InGame.Things
             "v1.0.0.zip"
         };
 
-        // Files to delete after extraction (not needed for runtime)
-        private static readonly string[] FilesToDelete = new[]
+        // Files to clean up if they exist in the game directory.
+        // NOTE: Our extraction only extracts Content/ and Data/ folders, so these
+        // files won't be extracted from the zip. This list is for cleaning up files
+        // that might exist from a previous manual extraction or existing installation.
+        private static readonly string[] FilesToCleanup = new[]
         {
-            "source.7z",           // Contains copyrighted source assets (PNG, WAV)
-            "Link's Awakening DX HD.exe",  // Windows executable from v1.0.0
-            "Link's Awakening DX HD.dll.config",
-            "MonoGame.Framework.dll.config"
+            "source.7z",           // Contains copyrighted source assets (PNG, WAV) - not needed
+            // Note: We do NOT delete exe files as they could be our running binary on Windows
         };
+
+        /// <summary>
+        /// Progress callback for UI updates. Parameters: (status message, percent 0-100)
+        /// </summary>
+        public static Action<string, int> OnProgress;
+
+        private static void ReportProgress(string status, int percent)
+        {
+            Console.WriteLine(status);
+            OnProgress?.Invoke(status, percent);
+            SplashScreen.SetStatus(status);
+            SplashScreen.SetProgress(percent);
+        }
 
         /// <summary>
         /// Checks for and extracts the v1.0.0 zip file if present.
@@ -86,7 +100,12 @@ namespace ProjectZ.InGame.Things
                 }
             }
 
+            SplashScreen.SetStatus($"Found: {Path.GetFileName(zipPath)}");
+            SplashScreen.SetProgress(5);
             Console.WriteLine($"Found zip file: {Path.GetFileName(zipPath)}");
+            
+            SplashScreen.SetStatus("Verifying checksum...");
+            SplashScreen.SetProgress(10);
             Console.WriteLine("Verifying checksum...");
 
             // Verify the checksum
@@ -103,6 +122,8 @@ namespace ProjectZ.InGame.Things
                 return false;
             }
 
+            SplashScreen.SetStatus("Extracting game assets...");
+            SplashScreen.SetProgress(15);
             Console.WriteLine("Checksum verified!");
             Console.WriteLine("Extracting Content and Data folders...");
 
@@ -114,6 +135,8 @@ namespace ProjectZ.InGame.Things
             }
 
             // Clean up unnecessary files
+            SplashScreen.SetStatus("Cleaning up...");
+            SplashScreen.SetProgress(35);
             CleanupExtractedFiles(gameDirectory);
 
             // Optionally delete or rename the zip file after successful extraction
@@ -128,6 +151,7 @@ namespace ProjectZ.InGame.Things
             }
             catch { /* Ignore errors creating marker */ }
 
+            SplashScreen.SetProgress(38);
             Console.WriteLine("Extraction complete!");
             Console.WriteLine("");
 
@@ -165,6 +189,10 @@ namespace ProjectZ.InGame.Things
         /// </summary>
         private static string PromptForZipFile(string gameDirectory)
         {
+            // Close the progress splash screen before showing file picker
+            // to avoid zenity conflicts on Linux
+            SplashScreen.Close();
+            
             Console.WriteLine("Please select the 'Links Awakening DX HD v1.0.0.zip' file...");
             Console.WriteLine("");
 
@@ -175,6 +203,12 @@ namespace ProjectZ.InGame.Things
 #else
             selectedPath = ShowLinuxFileDialog();
 #endif
+            
+            // Re-open splash screen if user selected a file
+            if (!string.IsNullOrEmpty(selectedPath) && File.Exists(selectedPath))
+            {
+                SplashScreen.Show("Processing selected file...");
+            }
 
             if (string.IsNullOrEmpty(selectedPath) || !File.Exists(selectedPath))
                 return null;
@@ -355,6 +389,15 @@ namespace ProjectZ.InGame.Things
                             rootFolder = parts[0] + "/";
                     }
 
+                    // Count total files to extract for progress
+                    int totalFiles = archive.Entries.Count(e => 
+                    {
+                        string path = e.FullName;
+                        if (rootFolder != null && path.StartsWith(rootFolder))
+                            path = path.Substring(rootFolder.Length);
+                        return (path.StartsWith("Content/") || path.StartsWith("Data/")) && !string.IsNullOrEmpty(e.Name);
+                    });
+
                     int extracted = 0;
                     foreach (var entry in archive.Entries)
                     {
@@ -382,11 +425,19 @@ namespace ProjectZ.InGame.Things
                         entry.ExtractToFile(destPath, overwrite: true);
                         extracted++;
 
+                        // Update progress (15-35% range for extraction)
+                        int progressPercent = 15 + (int)((extracted / (float)totalFiles) * 20);
+                        SplashScreen.SetProgress(progressPercent);
+
                         // Progress indicator
                         if (extracted % 100 == 0)
+                        {
+                            SplashScreen.SetStatus($"Extracting... {extracted}/{totalFiles} files");
                             Console.WriteLine($"  Extracted {extracted} files...");
+                        }
                     }
 
+                    SplashScreen.SetStatus($"Extracted {extracted} files");
                     Console.WriteLine($"  Extracted {extracted} files total.");
                 }
                 return true;
@@ -402,7 +453,7 @@ namespace ProjectZ.InGame.Things
         {
             Console.WriteLine("Cleaning up unnecessary files...");
             
-            foreach (var fileName in FilesToDelete)
+            foreach (var fileName in FilesToCleanup)
             {
                 string filePath = Path.Combine(directory, fileName);
                 if (File.Exists(filePath))

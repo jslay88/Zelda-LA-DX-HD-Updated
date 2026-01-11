@@ -48,6 +48,19 @@ namespace ProjectZ.InGame.Things
             { "NPCs/BowWow.ani", new[] { "bowwow_water.ani" } }  // Use path to disambiguate from Sequences/bowWow.ani
         };
 
+        /// <summary>
+        /// Progress callback for UI updates. Parameters: (status message, percent 0-100)
+        /// </summary>
+        public static Action<string, int> OnProgress;
+
+        private static void ReportProgress(string status, int percent)
+        {
+            Console.WriteLine(status);
+            OnProgress?.Invoke(status, percent);
+            SplashScreen.SetStatus(status);
+            SplashScreen.SetProgress(50 + percent / 2); // Patching is 50-100% range
+        }
+
         // Files that are derived and should NOT be backed up (they're created from base files)
         private static readonly HashSet<string> DerivedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         
@@ -117,9 +130,19 @@ namespace ProjectZ.InGame.Things
                     string patchedVersion = File.ReadAllText(versionPath).Trim();
                     if (patchedVersion == CurrentVersion)
                     {
-                        return true; // Already patched
+                        // Verify critical derived files exist - if not, we need to re-patch
+                        if (VerifyDerivedFilesExist(dataPath))
+                        {
+                            return true; // Already patched and all files present
+                        }
+                        Console.WriteLine("Some derived files are missing, re-patching...");
+                        // Delete version file to force re-patch
+                        try { File.Delete(versionPath); } catch { }
                     }
-                    Console.WriteLine($"Assets version {patchedVersion} -> {CurrentVersion}, upgrading...");
+                    else
+                    {
+                        Console.WriteLine($"Assets version {patchedVersion} -> {CurrentVersion}, upgrading...");
+                    }
                 }
                 else
                 {
@@ -165,6 +188,34 @@ namespace ProjectZ.InGame.Things
             return assembly.GetManifestResourceNames().Any(n => n.EndsWith(".xdelta"));
         }
 
+        /// <summary>
+        /// Verifies that critical derived files exist.
+        /// Returns false if any are missing, indicating re-patching is needed.
+        /// </summary>
+        private static bool VerifyDerivedFilesExist(string dataPath)
+        {
+            // Check a few critical derived files that the game needs
+            // These paths must match the actual game data structure
+            string[] criticalFiles = new[]
+            {
+                Path.Combine(dataPath, "Photo Mode", "photos_redux.png"),
+                Path.Combine(dataPath, "Map Objects", "npcs_redux.png"),
+                Path.Combine(dataPath, "Animations", "NPCs", "bowwow_water.ani"),
+                Path.Combine(dataPath, "Languages", "deu.lng"),
+            };
+
+            foreach (var file in criticalFiles)
+            {
+                if (!File.Exists(file))
+                {
+                    Console.WriteLine($"Missing derived file: {Path.GetFileName(file)}");
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private static bool PerformPatching(string contentPath, string dataPath)
         {
             try
@@ -195,11 +246,13 @@ namespace ProjectZ.InGame.Things
                 }
 
                 Console.WriteLine($"Found {patchResources.Count} patches available...");
+                SplashScreen.SetStatus($"Found {patchResources.Count} patches to apply...");
 
                 // Clean up bad backup files (derived files shouldn't be in backup)
                 RemoveBadBackupFiles();
 
                 int patchedCount = 0;
+                int processedCount = 0;
 
                 // Build a list of all files to process
                 var filesToProcess = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -234,13 +287,25 @@ namespace ProjectZ.InGame.Things
                 }
 
                 // First pass: Backup/restore and patch existing files
+                int totalFiles = filesToProcess.Count;
                 foreach (var kvp in filesToProcess)
                 {
                     string fileKey = kvp.Key;      // May be "parent/filename" or just "filename"
                     string filePath = kvp.Value;
+                    processedCount++;
+                    
+                    // Update progress (50-95% range for patching)
+                    int progressPercent = 50 + (int)((processedCount / (float)totalFiles) * 45);
+                    SplashScreen.SetProgress(progressPercent);
                     
                     // Extract just the filename (patches use filename only)
                     string fileName = fileKey.Contains("/") ? fileKey.Substring(fileKey.LastIndexOf('/') + 1) : fileKey;
+                    
+                    // Update splash status periodically
+                    if (processedCount % 50 == 0 || processedCount == totalFiles)
+                    {
+                        SplashScreen.SetStatus($"Patching assets... {processedCount}/{totalFiles}");
+                    }
                     
                     
                     // Skip derived files (they're created fresh from base files)
@@ -358,6 +423,8 @@ namespace ProjectZ.InGame.Things
                 FixCaseSensitivity(dataPath);
 #endif
 
+                SplashScreen.SetStatus($"Patched {patchedCount} files");
+                SplashScreen.SetProgress(98);
                 Console.WriteLine($"Patching complete: {patchedCount} files patched");
                 return true;
             }

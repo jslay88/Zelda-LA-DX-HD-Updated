@@ -36,35 +36,81 @@ jobs:
         working-directory: ladxhd_game_source_code/Content
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "compiled/Windows/Shader"
+          # Create Windows-specific MGCB file
+          $lines = @(
+            '/outputDir:compiled/Windows',
+            '/intermediateDir:obj/Windows',
+            '/platform:Windows',
+            '/profile:Reach',
+            '/compress:False',
+            ''
+          )
           
           $shaders = Get-ChildItem -Path "Shader/*.fx"
           foreach ($shader in $shaders) {
-            $name = $shader.BaseName
-            Write-Host "Building $name for Windows (DirectX)..."
-            mgcb /platform:Windows /profile:HiDef /importer:EffectImporter /processor:EffectProcessor /outputDir:compiled/Windows /intermediateDir:obj/Windows /build:"Shader/$($shader.Name)"
+            $lines += "#begin Shader/$($shader.Name)"
+            $lines += "/importer:EffectImporter"
+            $lines += "/processor:EffectProcessor"
+            $lines += "/processorParam:DebugMode=Auto"
+            $lines += "/build:Shader/$($shader.Name)"
+            $lines += ""
           }
+          
+          $lines | Out-File -FilePath "shaders-windows.mgcb" -Encoding utf8
+          Write-Host "Created shaders-windows.mgcb with $($shaders.Count) shaders"
+          
+          Write-Host "Building all shaders for Windows..."
+          mgcb /@:shaders-windows.mgcb
           
           Write-Host ""
           Write-Host "Windows shaders compiled:"
-          Get-ChildItem -Path "compiled/Windows/Shader" -Recurse
+          Get-ChildItem -Path "compiled/Windows/Shader" -Recurse -ErrorAction SilentlyContinue
+          $count = (Get-ChildItem -Path 'compiled/Windows/Shader' -Filter '*.xnb' -ErrorAction SilentlyContinue).Count
+          Write-Host "Total: $count shaders"
+          if ($count -lt 19) {
+            Write-Error "Expected 19 shaders, only got $count!"
+            exit 1
+          }
       
       - name: Compile DesktopGL Shaders (OpenGL)
         working-directory: ladxhd_game_source_code/Content
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "compiled/DesktopGL/Shader"
+          # Create DesktopGL-specific MGCB file
+          $lines = @(
+            '/outputDir:compiled/DesktopGL',
+            '/intermediateDir:obj/DesktopGL',
+            '/platform:DesktopGL',
+            '/profile:Reach',
+            '/compress:False',
+            ''
+          )
           
           $shaders = Get-ChildItem -Path "Shader/*.fx"
           foreach ($shader in $shaders) {
-            $name = $shader.BaseName
-            Write-Host "Building $name for DesktopGL (OpenGL)..."
-            mgcb /platform:DesktopGL /profile:HiDef /importer:EffectImporter /processor:EffectProcessor /outputDir:compiled/DesktopGL /intermediateDir:obj/DesktopGL /build:"Shader/$($shader.Name)"
+            $lines += "#begin Shader/$($shader.Name)"
+            $lines += "/importer:EffectImporter"
+            $lines += "/processor:EffectProcessor"
+            $lines += "/processorParam:DebugMode=Auto"
+            $lines += "/build:Shader/$($shader.Name)"
+            $lines += ""
           }
+          
+          $lines | Out-File -FilePath "shaders-desktopgl.mgcb" -Encoding utf8
+          Write-Host "Created shaders-desktopgl.mgcb with $($shaders.Count) shaders"
+          
+          Write-Host "Building all shaders for DesktopGL..."
+          mgcb /@:shaders-desktopgl.mgcb
           
           Write-Host ""
           Write-Host "DesktopGL shaders compiled:"
-          Get-ChildItem -Path "compiled/DesktopGL/Shader" -Recurse
+          Get-ChildItem -Path "compiled/DesktopGL/Shader" -Recurse -ErrorAction SilentlyContinue
+          $count = (Get-ChildItem -Path 'compiled/DesktopGL/Shader' -Filter '*.xnb' -ErrorAction SilentlyContinue).Count
+          Write-Host "Total: $count shaders"
+          if ($count -lt 19) {
+            Write-Error "Expected 19 shaders, only got $count!"
+            exit 1
+          }
       
       - name: Upload Windows Content
         uses: actions/upload-artifact@v4

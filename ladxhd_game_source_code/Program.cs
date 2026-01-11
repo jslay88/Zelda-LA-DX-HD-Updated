@@ -42,11 +42,20 @@ namespace ProjectZ
 
             try
             {
-                // Check and install platform-correct shaders if needed
+                // Step 1: Check if user has provided the v1.0.0 zip file and extract Content/Data if so
+                // This allows users to simply drop the zip file next to the game binary
+                if (!ZipExtractor.CheckAndExtract())
+                {
+                    Console.WriteLine("Press any key to exit...");
+                    Console.ReadKey();
+                    return;
+                }
+
+                // Step 2: Check and install platform-correct shaders if needed
                 // This handles the case where v1.0.0 ships Windows shaders but we need DesktopGL on Linux
                 ShaderPatcher.EnsureCorrectShaders();
                 
-                // Check and auto-patch assets if needed
+                // Step 3: Check and auto-patch assets if needed
                 if (!AssetPatcher.CheckAndPatchAssets())
                 {
                     Console.WriteLine("Asset patching failed or was cancelled. Exiting.");

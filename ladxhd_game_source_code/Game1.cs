@@ -754,6 +754,17 @@ namespace ProjectZ
             WindowWidthEnd = WindowWidth;
             WindowHeightEnd = WindowHeight;
 
+            // Update the backbuffer to match the window size.
+            // This is especially important on Linux/DesktopGL where the backbuffer
+            // doesn't automatically resize with the window.
+            if (Graphics.PreferredBackBufferWidth != WindowWidth || 
+                Graphics.PreferredBackBufferHeight != WindowHeight)
+            {
+                Graphics.PreferredBackBufferWidth = WindowWidth;
+                Graphics.PreferredBackBufferHeight = WindowHeight;
+                Graphics.ApplyChanges();
+            }
+
             UpdateRenderTargetSizes(WindowWidth, WindowHeight);
 
             ScreenManager.OnResizeEnd(WindowWidth, WindowHeight);

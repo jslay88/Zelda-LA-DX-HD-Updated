@@ -60,6 +60,7 @@ namespace ProjectZ.Properties {
             }
         }
         
+#if WINDOWS
         /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Icon similar to (Icon).
         /// </summary>
@@ -69,5 +70,6 @@ namespace ProjectZ.Properties {
                 return ((System.Drawing.Icon)(obj));
             }
         }
+#endif
     }
 }

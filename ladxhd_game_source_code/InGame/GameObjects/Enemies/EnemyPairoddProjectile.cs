@@ -1,4 +1,3 @@
-using Assimp.Unmanaged;
 using Microsoft.Xna.Framework;
 using ProjectZ.InGame.GameObjects.Base;
 using ProjectZ.InGame.GameObjects.Base.CObjects;
@@ -8,7 +7,6 @@ using ProjectZ.InGame.GameObjects.Things;
 using ProjectZ.InGame.Map;
 using ProjectZ.InGame.SaveLoad;
 using ProjectZ.InGame.Things;
-using SharpDX.Direct3D9;
 
 namespace ProjectZ.InGame.GameObjects.Enemies
 {

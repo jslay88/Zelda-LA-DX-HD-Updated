@@ -1,17 +1,47 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Target Platform detection: Use 'dotnet build -p:TargetPlatformName=Linux' or '-p:TargetPlatformName=Windows' -->
+  <!-- Default to current OS if not specified -->
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net6.0-windows</TargetFramework>
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <TargetPlatformName Condition="'$(TargetPlatformName)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">Linux</TargetPlatformName>
+    <TargetPlatformName Condition="'$(TargetPlatformName)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">Windows</TargetPlatformName>
+    <TargetPlatformName Condition="'$(TargetPlatformName)' == ''">Windows</TargetPlatformName>
+  </PropertyGroup>
+
+  <!-- Common properties -->
+  <!-- Set SkipContentBuild=true when building for distribution (user provides their own Content/Data) -->
+  <PropertyGroup>
     <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>false</TieredCompilation>
+    <StartupObject>ProjectZ.Program</StartupObject>
+    <AssemblyName>Link's Awakening DX HD</AssemblyName>
+    <PublishSingleFile>true</PublishSingleFile>
+    <ApplicationIcon>Resources\Icon.ico</ApplicationIcon>
+    <Version>1.5.2</Version>
+    <SkipContentBuild Condition="'$(SkipContentBuild)' == ''">false</SkipContentBuild>
+  </PropertyGroup>
+
+  <!-- Windows-specific properties -->
+  <PropertyGroup Condition="'$(TargetPlatformName)' == 'Windows'">
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <UseWindowsForms>true</UseWindowsForms>
     <MonoGamePlatform>Windows</MonoGamePlatform>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <DefineConstants>$(DefineConstants);WINDOWS;TRACE</DefineConstants>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <OutputPath></OutputPath>
-    <DefineConstants>TRACE;WINDOWS</DefineConstants>
+
+  <!-- Linux-specific properties -->
+  <PropertyGroup Condition="'$(TargetPlatformName)' == 'Linux'">
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <UseWindowsForms>false</UseWindowsForms>
+    <MonoGamePlatform>DesktopGL</MonoGamePlatform>
+    <DefineConstants>$(DefineConstants);LINUX;DESKTOPGL;TRACE</DefineConstants>
   </PropertyGroup>
+
+  <!-- Excluded files/folders -->
   <ItemGroup>
     <Compile Remove="Content\bin\**" />
     <Compile Remove="Content\obj\**" />
@@ -23,29 +53,58 @@
     <None Remove="Content\obj\**" />
     <None Remove="Fix\**" />
   </ItemGroup>
-    <ItemGroup>
+  <ItemGroup>
     <None Remove=".gitignore" />
     <None Remove=".gitmodules" />
   </ItemGroup>
+
+  <!-- Common package references -->
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.Content.Pipeline" Version="3.8.1.303" />
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.1.303" />
-    <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.1.303" />
+    <PackageReference Include="MonoGame.Framework.Content.Pipeline" Version="3.8.1.303" Condition="'$(SkipContentBuild)' != 'true'" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.1.303" Condition="'$(SkipContentBuild)' != 'true'" />
     <PackageReference Include="System.Resources.Extensions" Version="8.0.0" />
   </ItemGroup>
-  <ItemGroup>
-    <Content Include="Data\**">
+
+  <!-- Windows-specific packages -->
+  <ItemGroup Condition="'$(TargetPlatformName)' == 'Windows'">
+    <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.1.303" />
+  </ItemGroup>
+
+  <!-- Linux-specific packages -->
+  <ItemGroup Condition="'$(TargetPlatformName)' == 'Linux'">
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.1.303" />
+  </ItemGroup>
+
+  <!-- Content/Data folders (only include if they exist - user must provide) -->
+  <!-- When SkipContentBuild=true, we don't copy Content/Data - user provides them -->
+  <ItemGroup Condition="'$(SkipContentBuild)' != 'true'">
+    <Content Include="Data\**" Condition="Exists('Data')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-    <PropertyGroup>
-    <StartupObject>ProjectZ.Program</StartupObject>
-    <AssemblyName>Link's Awakening DX HD</AssemblyName>
-    <PublishSingleFile>true</PublishSingleFile>
-    <ApplicationIcon>Resources\Icon.ico</ApplicationIcon>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.5.2</Version>
-  </PropertyGroup>
+  
+  <!-- Disable MGCB processing when SkipContentBuild is true -->
+  <ItemGroup Condition="'$(SkipContentBuild)' == 'true'">
+    <MonoGameContentReference Remove="**\*.mgcb" />
+  </ItemGroup>
+
+  <!-- Embedded patches for auto-patching on first launch -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\assets_patches\**\*.xdelta">
+      <LogicalName>ProjectZ.Patches.%(Filename)%(Extension)</LogicalName>
+      <Link>Patches\%(Filename)%(Extension)</Link>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- Embed xdelta3.exe for Windows auto-patching -->
+  <ItemGroup Condition="'$(TargetPlatformName)' == 'Windows'">
+    <EmbeddedResource Include="..\ladxhd_patcher_source_code\xdelta3.exe">
+      <LogicalName>ProjectZ.Tools.xdelta3.exe</LogicalName>
+      <Link>Tools\xdelta3.exe</Link>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- Build tasks -->
   <Target Name="RestoreDotnetTools" BeforeTargets="Restore">
     <Message Text="Restoring dotnet tools" Importance="High" />
     <Exec Command="dotnet tool restore" />
@@ -53,7 +112,9 @@
   <Target Name="RemovePreviousPublish" BeforeTargets="Build">
     <RemoveDir Directories="$(PublishDir)"></RemoveDir>
   </Target>
-  <Target Name="CleanPublish" AfterTargets="Publish">
+
+  <!-- Windows cleanup after publish -->
+  <Target Name="CleanPublishWindows" AfterTargets="Publish" Condition="'$(TargetPlatformName)' == 'Windows'">
     <Delete Files="$(PublishDir)/assimp.dll" />
     <Delete Files="$(PublishDir)/ffmpeg.exe" />
     <Delete Files="$(PublishDir)/ffprobe.exe" />
@@ -64,5 +125,10 @@
     <Delete Files="$(PublishDir)/Link's Awakening DX HD.pdb" />
     <Delete Files="$(PublishDir)/nvtt.dll" />
     <Delete Files="$(PublishDir)/PVRTexLibWrapper.dll" />
+  </Target>
+
+  <!-- Linux cleanup after publish -->
+  <Target Name="CleanPublishLinux" AfterTargets="Publish" Condition="'$(TargetPlatformName)' == 'Linux'">
+    <Delete Files="$(PublishDir)/Link's Awakening DX HD.pdb" />
   </Target>
 </Project>

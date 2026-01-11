@@ -1,10 +1,13 @@
 ﻿﻿using System.Collections.Generic;
-using System.Windows.Forms;
 using Microsoft.Xna.Framework;
 using ProjectZ.InGame.Controls;
 using ProjectZ.InGame.Interface;
 using ProjectZ.InGame.SaveLoad;
 using ProjectZ.InGame.Things;
+
+#if WINDOWS
+using System.Windows.Forms;
+#endif
 
 namespace ProjectZ.InGame.Pages
 {
@@ -58,7 +61,12 @@ namespace ProjectZ.InGame.Pages
                 SettingsSaveLoad.SaveSettings();
                 SaveGameSaveLoad.SaveGame(Game1.GameManager, false);
             }
+#if WINDOWS
             Application.Exit();
+#else
+            // Cross-platform exit - Environment.Exit works on all platforms
+            System.Environment.Exit(0);
+#endif
         }
     }
 }

@@ -1,0 +1,97 @@
+name: Build and Release Patcher
+
+on:
+  push:
+    tags:
+      - 'patcher-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.5.3)'
+        required: true
+        type: string
+
+jobs:
+  build-patcher:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+      
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
+      
+    - name: Restore NuGet packages
+      run: nuget restore ladxhd_patcher_source_code/LADXHD_Patcher.sln
+      
+    - name: Build Patcher
+      run: msbuild ladxhd_patcher_source_code/LADXHD_Patcher.sln /p:Configuration=Release /p:Platform="Any CPU"
+      
+    - name: Get version from tag
+      id: get_version
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${GITHUB_REF#refs/tags/patcher-}" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Prepare release artifacts
+      shell: pwsh
+      run: |
+        $version = "${{ steps.get_version.outputs.version }}"
+        $releaseDir = "release"
+        New-Item -ItemType Directory -Force -Path $releaseDir
+        
+        # Copy patcher executable and required files
+        Copy-Item "ladxhd_patcher_source_code/bin/Release/LADXHD_Patcher.exe" "$releaseDir/LADXHD.Patcher.$version.exe"
+        Copy-Item "ladxhd_patcher_source_code/xdelta3.exe" "$releaseDir/" -ErrorAction SilentlyContinue
+        
+        # Create zip archive
+        Compress-Archive -Path "$releaseDir/*" -DestinationPath "LADXHD.Patcher.$version.zip"
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: patcher-${{ steps.get_version.outputs.version }}
+        path: |
+          release/
+          LADXHD.Patcher.${{ steps.get_version.outputs.version }}.zip
+          
+    - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        name: Patcher ${{ steps.get_version.outputs.version }}
+        body: |
+          ## LADXHD Patcher ${{ steps.get_version.outputs.version }}
+          
+          This patcher updates Link's Awakening DX HD from v1.0.0 (or v1.1.4+) to the latest version.
+          
+          > ⚠️ **Note**: This release contains only the patcher tool. You must provide your own copy of the original v1.0.0 game release. No copyrighted game assets are included in this download.
+          
+          ### Requirements
+          - Original Link's Awakening DX HD v1.0.0 (or v1.1.4+) from itch.io
+          
+          ### Usage
+          1. Download `LADXHD.Patcher.${{ steps.get_version.outputs.version }}.zip`
+          2. Extract into your game folder (same folder as `Link's Awakening DX HD.exe`)
+          3. Run the patcher executable
+          4. Click "Patch" and wait for completion
+          
+          ### Silent Mode
+          ```
+          LADXHD.Patcher.${{ steps.get_version.outputs.version }}.exe --silent
+          ```
+          
+        files: |
+          LADXHD.Patcher.${{ steps.get_version.outputs.version }}.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

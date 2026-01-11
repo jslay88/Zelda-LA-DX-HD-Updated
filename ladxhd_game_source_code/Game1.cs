@@ -52,7 +52,9 @@ namespace ProjectZ
         private static int _lastWindowWidth;
         private static int _lastWindowHeight;
 
+#if WINDOWS
         private static System.Drawing.Rectangle _lastWindowBounds;
+#endif
 
         public static bool FpsSettingChanged;
         private readonly SimpleFps _fpsCounter = new SimpleFps();
@@ -114,10 +116,10 @@ namespace ProjectZ
             (float)Graphics.PreferredBackBufferWidth / WindowWidth,
             (float)Graphics.PreferredBackBufferHeight / WindowHeight, 0));
 
-        #if WINDOWS
-            private static Forms.Form _windowForm;
-            private static Forms.FormWindowState _lastWindowState;
-        #endif
+#if WINDOWS
+        private static Forms.Form _windowForm;
+        private static Forms.FormWindowState _lastWindowState;
+#endif
 
         // lahdmod values
         private int  max_game_scale = 20;
@@ -137,18 +139,18 @@ namespace ProjectZ
             // Enable editor via lahdmod file or through the command line option.
             EditorMode = editorMode || editor_mode;
 
-            #if WINDOWS
-                // Get the form handle and set the icon of the window.
-                _windowForm = (Forms.Form)Forms.Control.FromHandle(Window.Handle);
-                _windowForm.Icon = Properties.Resources.Icon;
+#if WINDOWS
+            // Get the form handle and set the icon of the window.
+            _windowForm = (Forms.Form)Forms.Control.FromHandle(Window.Handle);
+            _windowForm.Icon = Properties.Resources.Icon;
 
-                // Calculate the extra pixels taken up by the title bar and window border.
-                var deltaWidth = _windowForm.Width - _windowForm.ClientSize.Width;
-                var deltaHeight = _windowForm.Height - _windowForm.ClientSize.Height;
+            // Calculate the extra pixels taken up by the title bar and window border.
+            var deltaWidth = _windowForm.Width - _windowForm.ClientSize.Width;
+            var deltaHeight = _windowForm.Height - _windowForm.ClientSize.Height;
 
-                // Set the minimum window size including the extra pixels.
-                _windowForm.MinimumSize = new System.Drawing.Size(Values.MinWidth + deltaWidth, Values.MinHeight + deltaHeight);
-            #endif
+            // Set the minimum window size including the extra pixels.
+            _windowForm.MinimumSize = new System.Drawing.Size(Values.MinWidth + deltaWidth, Values.MinHeight + deltaHeight);
+#endif
 
             // Create the graphics device and set the back buffer width/height.
             Graphics = new GraphicsDeviceManager(this);
@@ -522,6 +524,16 @@ namespace ProjectZ
 
         public static void ToggleFullscreen()
         {
+#if WINDOWS
+            ToggleFullscreenWindows();
+#else
+            ToggleFullscreenLinux();
+#endif
+        }
+
+#if WINDOWS
+        private static void ToggleFullscreenWindows()
+        {
             // Switch to fullscreen mode.
             if (!GameSettings.IsFullscreen)
             {
@@ -576,6 +588,54 @@ namespace ProjectZ
             // Update the render targets.
             GameManager?.UpdateRenderTargets();
         }
+#else
+        private static void ToggleFullscreenLinux()
+        {
+            // Switch to fullscreen mode.
+            if (!GameSettings.IsFullscreen)
+            {
+                // Set fullscreen mode to true.
+                FullScreen = GameSettings.IsFullscreen = true;
+                
+                // Save current window state for restoration.
+                _lastWindowWidth = Graphics.PreferredBackBufferWidth;
+                _lastWindowHeight = Graphics.PreferredBackBufferHeight;
+
+                // On Linux, we use MonoGame's built-in fullscreen toggle
+                // which works with SDL and supports both exclusive and borderless modes
+                if (GameSettings.ExFullscreen)
+                {
+                    // Exclusive fullscreen - let MonoGame/SDL handle the resolution
+                    Graphics.HardwareModeSwitch = true;
+                    Graphics.IsFullScreen = true;
+                    Graphics.ApplyChanges();
+                    WasExclusive = true;
+                }
+                else
+                {
+                    // Borderless fullscreen
+                    Graphics.HardwareModeSwitch = false;
+                    Graphics.IsFullScreen = true;
+                    Graphics.ApplyChanges();
+                }
+            }
+            // Switch to windowed mode.
+            else
+            {
+                // Set fullscreen mode to false.
+                FullScreen = GameSettings.IsFullscreen = false;
+
+                // Restore windowed mode
+                Graphics.IsFullScreen = false;
+                Graphics.PreferredBackBufferWidth = _lastWindowWidth;
+                Graphics.PreferredBackBufferHeight = _lastWindowHeight;
+                Graphics.ApplyChanges();
+                WasExclusive = false;
+            }
+            // Update the render targets.
+            GameManager?.UpdateRenderTargets();
+        }
+#endif
 
         public void DebugTextBackground()
         {

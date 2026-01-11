@@ -1,6 +1,9 @@
 ﻿using System;
-using System.Windows.Forms;
 using ProjectZ.InGame.Things;
+
+#if WINDOWS
+using System.Windows.Forms;
+#endif
 
 namespace ProjectZ
 {
@@ -39,13 +42,27 @@ namespace ProjectZ
 
             try
             {
+                // Check and auto-patch assets if needed
+                if (!AssetPatcher.CheckAndPatchAssets())
+                {
+                    Console.WriteLine("Asset patching failed or was cancelled. Exiting.");
+                    return;
+                }
+
                 using (var game = new Game1(editorMode, loadSave, saveSlot))
                     game.Run();
             }
 
             catch (Exception exception)
             {
+#if WINDOWS
                 MessageBox.Show(exception.StackTrace, exception.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
+#else
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[ERROR] {exception.Message}");
+                Console.ResetColor();
+                Console.WriteLine(exception.StackTrace);
+#endif
                 throw;
             }
         }

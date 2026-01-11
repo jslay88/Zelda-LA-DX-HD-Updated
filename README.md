@@ -14,10 +14,30 @@ Some assets have been updated, but I have created tooling to make migration easi
 - As of v1.4.0, the gravy train never stopped and much work has been done to make this port more accurate.
 - As of v1.5.0, it has evolved into something I never dreamed of. Hundreds of issues fixed with tons of features.
 
-## Patching v1.0.0 (or v1.1.4+) to v1.5.2b.
+## Getting Started (Recommended)
 
-To download the latest update, there is a patcher on the [Releases](https://github.com/BigheadSMZ/Zelda-LA-DX-HD-Updated/releases) page. 
-If you wish to build the game yourself, see **Personal Build / Publishing**.
+The easiest way to play is using the **auto-patching game binary** from the [Releases](https://github.com/BigheadSMZ/Zelda-LA-DX-HD-Updated/releases) page:
+
+1. **Download** the game binary for your platform (`game-v*` releases):
+   - Windows: `LADXHD-Windows-x64.zip`
+   - Linux: `LADXHD-Linux-x64.tar.gz`
+
+2. **Extract** the archive
+
+3. **Copy your v1.0.0 assets**:
+   - Copy the `Content` and `Data` folders from your original **Link's Awakening DX HD v1.0.0** installation into the same directory as the game executable
+
+4. **Run the game** - it will automatically patch your assets on first launch!
+
+> 💡 **Linux users**: You'll need `xdelta3` installed for auto-patching:
+> - Arch Linux: `sudo pacman -S xdelta3`
+> - Ubuntu/Debian: `sudo apt install xdelta3`
+> - Fedora: `sudo dnf install xdelta3`
+
+## Alternative: Using the Standalone Patcher
+
+If you prefer to patch an existing v1.0.0/v1.1.4+ installation in place, there is a Windows patcher tool on the [Releases](https://github.com/BigheadSMZ/Zelda-LA-DX-HD-Updated/releases) page (`patcher-v*` releases).
+
 - Find the v1.0.0 release originally from itch.io.
 - If you can not find it, you can search for an "archive" of it.
 - It's a good idea to keep a <ins>backup</ins> of v1.0.0.
@@ -44,17 +64,26 @@ LADXHD.Patcher.exe --silent
 | 0 | Success |
 | 1 | Game executable not found |
 | 2 | Patching failed |
-## Running on Linux with Proton
+## Running on Linux
 
-Quick Start (Recommended) - Use the automated installer for a hassle-free setup:
+This project now supports **native Linux builds** using MonoGame's DesktopGL backend!
 
+See the [Linux guide](./LINUX.md) for:
+- **Native Linux builds** - Build and run without Wine/Proton
+- **Proton setup** - Run the Windows build through Steam/Proton
+
+Quick Start with Proton - Use the automated installer:
 [zladxhd-installer](https://github.com/jslay88/zladxhd-installer)
-
-otherwise, follow the [Linux guide](./LINUX.md)
 
 ## About This Repository
 
 A few years back, an anonymous user posted a PC Port of Link's Awakening on itch.io built with MonoGame. It wasn't long before the game was taken down, fortunately the release contained the source code. This is a continuation of that PC Port but with the assets stripped away to avoid copyright issues. 
+
+> ⚠️ **Important**: This repository contains only source code and xdelta patches. The GitHub Releases page provides:
+> - **Game binaries** (`game-v*` tags) - Self-patching executables for Windows and Linux (no copyrighted assets included)
+> - **Patcher tool** (`patcher-v*` tags) - Windows-only tool to patch an existing v1.0.0 installation
+> 
+> You must provide your own copy of the original v1.0.0 `Content` and `Data` folders to play the game.
 
 This section explains the files and folders found in the base of this respository.
 - **assets_original**: This is where the **"Content"** and **"Data"** folders from v1.0.0 should go.
@@ -77,8 +106,9 @@ The latest source code can be downloaded from this repository. But, you will nee
 - There should also be a 7-Zip of the v1.0.0 source code included with the game: **"source.7z"**.
 - Unzip the **"source.7z"** file from the original v1.0.0 release.
 - Copy the **"Content"** folder from the original v1.0.0 <ins>source code folder</ins> to the **"assets_original"** folder.
-- After both folders are copied, open the **"LADXHD_Migrater.exe"** tool that is provided.
-- Click the button **"Migrate Assets From v1.0.0"** and wait for it to finish.
+- After both folders are copied, run the migration tool:
+  - **Windows**: Open the **"LADXHD_Migrater.exe"** tool and click **"Migrate Assets From v1.0.0"**.
+  - **Linux**: Run `./migrate_assets.sh` (requires `xdelta3` installed).
 - This will create new **"Content"** and **"Data"** folders in the **"ladxhd_game_source_code"** folder.
 - And you are done. From here you can build the game or work on the code.
 - The original **"Content/Data"** folders should be kept in **"assets_original"** for future patches.
@@ -116,15 +146,19 @@ If you wish to build the code in this repository.
 ## Personal Build / Publishing
 
 To create a personal build, follow the steps below:
-- Download and install [.NET v6.0.428 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/sdk-6.0.428-windows-x64-installer).
+- Download and install [.NET 6.0 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/6.0).
 - Clone or Download this repository: green `Code` Button > `Download ZIP`
 - Unzip the repository and open up the unzipped folder.
 - Follow the steps in **Updating Source Code Assets**
-- Run the PowerShell script "Unblock-All-Files.ps1".
-  - -OR- Go to the folder `ladxhd_game_source_code\.config` you will see `dotnet-tools.json`.
-  - -AND- Right click, go to properties, check `Unblock`.
-- Run the `ladxhd_game_source_code\publish.bat` script to build the game.
-- Alternatively, the **"LADXHD_Migrater.exe"** tool can now build the game.
+- **Windows**:
+  - Run the PowerShell script "Unblock-All-Files.ps1".
+    - -OR- Go to the folder `ladxhd_game_source_code\.config` you will see `dotnet-tools.json`.
+    - -AND- Right click, go to properties, check `Unblock`.
+  - Run `ladxhd_game_source_code\publish.bat` to build.
+  - Alternatively, the **"LADXHD_Migrater.exe"** tool can now build the game.
+- **Linux**:
+  - Run `ladxhd_game_source_code/publish.sh linux` to build.
+  - Note: Shader compilation requires Wine with d3dcompiler_47, or use pre-compiled Content from a Windows build.
 - When done, the build will be in the `Publish` folder.
 
 ## Build Troubleshooting

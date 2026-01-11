@@ -51,10 +51,20 @@ namespace ProjectZ.InGame.Things
                     string currentPlatform = File.ReadAllText(markerPath).Trim();
                     if (currentPlatform == TargetPlatform)
                     {
-                        Console.WriteLine($"Shaders already configured for {TargetPlatform}");
-                        return true;
+                        // Verify at least one shader file actually exists and is correct
+                        if (VerifyShaderPlatform(contentShaderPath))
+                        {
+                            Console.WriteLine($"Shaders already configured for {TargetPlatform}");
+                            return true;
+                        }
+                        // Marker exists but shaders are wrong - delete marker and reinstall
+                        Console.WriteLine($"Shader marker says {TargetPlatform} but shaders appear incorrect, reinstalling...");
+                        try { File.Delete(markerPath); } catch { }
                     }
-                    Console.WriteLine($"Shaders are for {currentPlatform}, need {TargetPlatform}");
+                    else
+                    {
+                        Console.WriteLine($"Shaders are for {currentPlatform}, need {TargetPlatform}");
+                    }
                 }
 
                 // Check if we have bundled shaders for this platform
@@ -139,15 +149,62 @@ namespace ProjectZ.InGame.Things
                     }
                 }
 
-                // Write platform marker
-                File.WriteAllText(markerPath, TargetPlatform);
-                
-                Console.WriteLine($"Installed {installed} {TargetPlatform} shaders");
-                return installed > 0;
+                // Only write marker if we actually installed shaders
+                if (installed > 0)
+                {
+                    File.WriteAllText(markerPath, TargetPlatform);
+                    Console.WriteLine($"Installed {installed} {TargetPlatform} shaders");
+                    return true;
+                }
+                else
+                {
+                    Console.WriteLine("WARNING: No shaders were installed!");
+                    return false;
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Failed to install shaders: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Verify that shader XNB files are for the correct platform.
+        /// Checks the XNB header byte (offset 3): 'w' = Windows, 'd' = DesktopGL.
+        /// </summary>
+        private static bool VerifyShaderPlatform(string shaderPath)
+        {
+            try
+            {
+                var xnbFiles = Directory.GetFiles(shaderPath, "*.xnb");
+                if (xnbFiles.Length == 0)
+                    return false;
+
+                // Check the first XNB file's platform byte
+                string testFile = xnbFiles[0];
+                byte[] header = new byte[4];
+                using (var fs = File.OpenRead(testFile))
+                {
+                    if (fs.Read(header, 0, 4) < 4)
+                        return false;
+                }
+
+                // XNB header: 'X', 'N', 'B', platform_byte
+                if (header[0] != 'X' || header[1] != 'N' || header[2] != 'B')
+                    return false;
+
+                char platformByte = (char)header[3];
+#if WINDOWS
+                // Windows expects 'w' (0x77)
+                return platformByte == 'w';
+#else
+                // DesktopGL expects 'd' (0x64)
+                return platformByte == 'd';
+#endif
+            }
+            catch
+            {
                 return false;
             }
         }

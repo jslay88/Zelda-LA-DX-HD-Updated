@@ -289,7 +289,7 @@ jobs:
             
             This release contains the **game binary with pre-compiled shaders** and embedded patches.
             
-            **You must provide your own v1.0.0 game assets** (Content and Data folders) from the original release.
+            **You must provide your own copy of "Link's Awakening DX HD v1.0.0"** - either the original zip archive or the extracted Content/Data folders.
             
             ---
             
@@ -297,32 +297,46 @@ jobs:
             
             #### Windows
             1. Download and extract `LADXHD-Windows-x64.zip`
-            2. Copy the `Content` and `Data` folders from your **Link's Awakening DX HD v1.0.0** installation
-            3. Run the game
-               - Shaders will be automatically installed from `Shaders-Windows/`
-               - Assets will be automatically patched on first launch
+            2. Place your **Link's Awakening DX HD v1.0.0** zip file in the same folder as the game executable
+               - Supported names: `Links Awakening DX HD v1.0.0.zip`, `LADXHD v1.0.0.zip`, `v1.0.0.zip`, etc.
+               - Or copy the extracted `Content` and `Data` folders directly
+            3. Run the game - everything is automatic!
+               - The v1.0.0 archive will be extracted automatically
+               - Shaders will be installed from `Shaders-Windows/`
+               - Assets will be patched on first launch
             
             #### Linux
             1. Download and extract `LADXHD-Linux-x64.tar.gz`
-            2. Copy the `Content` and `Data` folders from your **Link's Awakening DX HD v1.0.0** installation
-            3. Install `xdelta3`:
-               - **Arch Linux**: `sudo pacman -S xdelta3`
-               - **Ubuntu/Debian**: `sudo apt install xdelta3`
-               - **Fedora**: `sudo dnf install xdelta3`
-            4. Run the game
-               - DesktopGL shaders will be automatically installed from `Shaders-DesktopGL/`
-               - Data assets will be automatically patched on first launch
+            2. Install dependencies:
+               ```bash
+               # Arch Linux
+               sudo pacman -S xdelta3 zenity
+               
+               # Ubuntu/Debian
+               sudo apt install xdelta3 zenity
+               
+               # Fedora
+               sudo dnf install xdelta3 zenity
+               ```
+            3. Place your **Link's Awakening DX HD v1.0.0** zip file in the same folder as the game binary
+               - Or copy the extracted `Content` and `Data` folders directly
+            4. Run the game - everything is automatic!
+               - The v1.0.0 archive will be extracted automatically
+               - DesktopGL shaders will be installed from `Shaders-DesktopGL/`
+               - Assets will be patched on first launch
+            
+            **Note**: If the zip file isn't found, a file picker dialog will appear (requires `zenity` on Linux).
             
             ---
             
             ### What's Included
             
-            | Platform | Binary | Shaders | Auto-Patching |
-            |----------|--------|---------|---------------|
-            | Windows | Self-contained .exe | DirectX (in `Shaders-Windows/`) | Content + Data |
-            | Linux | Self-contained binary | OpenGL (in `Shaders-DesktopGL/`) | Data only* |
+            | Platform | Binary | Shaders | Auto-Setup |
+            |----------|--------|---------|------------|
+            | Windows | Self-contained .exe | DirectX (in `Shaders-Windows/`) | Zip extraction + Content/Data patching |
+            | Linux | Self-contained binary | OpenGL (in `Shaders-DesktopGL/`) | Zip extraction + Data patching* |
             
-            *Linux skips Content patching because v1.0.0 Content has Windows XNB format. The bundled DesktopGL shaders replace the incompatible Windows shaders.
+            *Linux Content patching is skipped because v1.0.0 Content has Windows XNB format. The bundled DesktopGL shaders replace the incompatible Windows shaders.
             
             ---
             
@@ -342,6 +356,10 @@ jobs:
             
             **"xdelta3 not found"**
             - Install xdelta3 using your package manager (see Linux instructions above)
+            
+            **File picker doesn't appear (Linux)**
+            - Install `zenity`: `sudo pacman -S zenity` or `sudo apt install zenity`
+            - As fallback, the game will prompt in the terminal
             
             **Game crashes on startup (Linux)**
             - Ensure you have SDL2 and OpenAL installed

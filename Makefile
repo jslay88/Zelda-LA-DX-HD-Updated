@@ -74,6 +74,7 @@ build-windows:
 		-p:TargetPlatformName=Windows \
 		-p:SkipContentBuild=true \
 		-p:PublishSingleFile=true \
+		-p:EnableWindowsTargeting=true \
 		--self-contained true \
 		-o ../$(PUBLISH_DIR)/Windows
 	@echo "$(GREEN)✓ Windows build complete: $(PUBLISH_DIR)/Windows/$(NC)"
@@ -160,14 +161,17 @@ test-windows: build-windows
 		exit 1; \
 	fi
 	@mkdir -p test/Windows
-	@echo "  Extracting v1.0.0 assets..."
+	@echo "  Extracting v1.0.0 assets (Content/ and Data/ only)..."
 	@unzip -q -o "Links Awakening DX HD v1.0.0.zip" -d test/Windows/
 	@if [ -d "test/Windows/Links Awakening DX HD" ]; then \
 		mv test/Windows/Links\ Awakening\ DX\ HD/* test/Windows/; \
 		rmdir "test/Windows/Links Awakening DX HD"; \
 	fi
+	@# Remove files not needed for runtime (source.7z contains copyrighted source assets)
+	@rm -f test/Windows/source.7z test/Windows/*.exe test/Windows/*.dll test/Windows/*.config 2>/dev/null || true
 	@echo "  Copying Windows binary..."
 	@cp "$(PUBLISH_DIR)/Windows/Link's Awakening DX HD.exe" test/Windows/
+	@cp $(PUBLISH_DIR)/Windows/*.dll test/Windows/ 2>/dev/null || true
 	@echo "$(GREEN)✓ Windows test environment ready: test/Windows/$(NC)"
 	@echo "$(YELLOW)Run: cd test/Windows && wine 'Link'\"'\"'s Awakening DX HD.exe'$(NC)"
 
@@ -180,14 +184,17 @@ test-linux: build-linux shaders-linux
 		exit 1; \
 	fi
 	@mkdir -p test/Linux
-	@echo "  Extracting v1.0.0 assets..."
+	@echo "  Extracting v1.0.0 assets (Content/ and Data/ only)..."
 	@unzip -q -o "Links Awakening DX HD v1.0.0.zip" -d test/Linux/
 	@if [ -d "test/Linux/Links Awakening DX HD" ]; then \
 		mv test/Linux/Links\ Awakening\ DX\ HD/* test/Linux/; \
 		rmdir "test/Linux/Links Awakening DX HD"; \
 	fi
+	@# Remove files not needed for runtime (source.7z contains copyrighted source assets)
+	@rm -f test/Linux/source.7z test/Linux/*.exe test/Linux/*.dll test/Linux/*.config 2>/dev/null || true
 	@echo "  Copying Linux binary..."
 	@cp "$(PUBLISH_DIR)/Linux/Link's Awakening DX HD" test/Linux/
+	@cp $(PUBLISH_DIR)/Linux/*.so* test/Linux/ 2>/dev/null || true
 	@echo "  Setting up DesktopGL shaders (Shaders-DesktopGL/)..."
 	@mkdir -p test/Linux/Shaders-DesktopGL
 	@cp $(CONTENT_DIR)/bin/DesktopGL/Shader/*.xnb test/Linux/Shaders-DesktopGL/ 2>/dev/null || true
@@ -195,7 +202,9 @@ test-linux: build-linux shaders-linux
 	@echo "$(YELLOW)Run: cd test/Linux && ./Link's\\ Awakening\\ DX\\ HD$(NC)"
 	@echo "$(YELLOW)Note: Game will auto-install shaders and patch Data on first run$(NC)"
 
-# Full Linux setup (compiles ALL Content - requires Wine and source.7z)
+# Full Linux setup (compiles ALL Content from source.7z - requires Wine)
+# NOTE: This target keeps source.7z because setup_linux_assets.sh needs it
+# to compile PNG/WAV/spritefont files into XNB format for DesktopGL
 test-linux-full: build-linux
 	@echo "$(CYAN)Setting up Linux test environment with FULL Content compilation...$(NC)"
 	@if [ ! -f "Links Awakening DX HD v1.0.0.zip" ]; then \

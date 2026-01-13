@@ -69,13 +69,13 @@ else
 endif
 
 build-windows:
-	@echo "$(GREEN)Building for Windows...$(NC)"
+	@echo "$(GREEN)Building for Windows (framework-dependent, requires .NET Desktop 6)...$(NC)"
 	cd $(PROJECT_DIR) && $(DOTNET) publish -c Release -r win-x64 \
 		-p:TargetPlatformName=Windows \
 		-p:SkipContentBuild=true \
 		-p:PublishSingleFile=true \
 		-p:EnableWindowsTargeting=true \
-		--self-contained true \
+		--self-contained false \
 		-o ../$(PUBLISH_DIR)/Windows
 	@echo "$(GREEN)✓ Windows build complete: $(PUBLISH_DIR)/Windows/$(NC)"
 

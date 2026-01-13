@@ -19,7 +19,7 @@ namespace ProjectZ.InGame.Things
     public static class AssetPatcher
     {
         private const string VersionFile = ".patched_version";
-        private const string CurrentVersion = "1.5.2";
+        private const string CurrentVersion = "1.6.5";
         
         // Backup folder stores v1.0.0 originals for future upgrades
         private const string BackupFolderName = "Backup";

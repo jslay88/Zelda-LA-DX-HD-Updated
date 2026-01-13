@@ -17,7 +17,7 @@ namespace ProjectZ.InGame.Things
     public static class SplashScreen
     {
         private static readonly string GameTitle = "Link's Awakening DX HD";
-        private static readonly string Version = "v1.5.2";
+        private static readonly string Version = "v1.6.5";
 
 #if WINDOWS
         private static Form _splashForm;
@@ -227,7 +227,7 @@ namespace ProjectZ.InGame.Things
             Console.WriteLine("");
             Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
             Console.WriteLine("║                                                            ║");
-            Console.WriteLine("║          Link's Awakening DX HD  v1.5.2                    ║");
+            Console.WriteLine("║          Link's Awakening DX HD  v1.6.5                    ║");
             Console.WriteLine("║                                                            ║");
             Console.WriteLine("║    HD Remake of The Legend of Zelda: Link's Awakening DX  ║");
             Console.WriteLine("║                                                            ║");

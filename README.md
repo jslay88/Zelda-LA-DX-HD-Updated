@@ -20,10 +20,11 @@ The easiest way to play is using the **auto-patching game binary** from the [Rel
 
 ### Windows
 
-1. **Download** `LADXHD-Windows-x64.zip` from the releases page
-2. **Extract** the archive
-3. **Copy your v1.0.0 assets**: Copy the `Content` and `Data` folders from your original **Link's Awakening DX HD v1.0.0** installation
-4. **Run the game** - everything is automatic!
+1. **Install [.NET Desktop Runtime 6.0](https://dotnet.microsoft.com/download/dotnet/6.0/runtime)** if not already installed
+2. **Download** `LADXHD-Windows-x64.zip` from the releases page
+3. **Extract** the archive
+4. **Copy your v1.0.0 assets**: Copy the `Content` and `Data` folders from your original **Link's Awakening DX HD v1.0.0** installation
+5. **Run the game** - everything is automatic!
    - ✅ Shaders auto-installed from `Shaders-Windows/`
    - ✅ Assets auto-patched on first launch
 

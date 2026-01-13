@@ -16,7 +16,7 @@
     <AssemblyName>Link's Awakening DX HD</AssemblyName>
     <PublishSingleFile>true</PublishSingleFile>
     <ApplicationIcon>Resources\Icon.ico</ApplicationIcon>
-    <Version>1.5.2</Version>
+    <Version>1.6.5</Version>
     <SkipContentBuild Condition="'$(SkipContentBuild)' == ''">false</SkipContentBuild>
   </PropertyGroup>
 

@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g., 1.5.2)'
+        description: 'Version tag (e.g., 1.6.5)'
         required: true
-        default: '1.5.2'
+        default: '1.6.5'
 
 jobs:
   # =============================================================================
@@ -147,11 +147,13 @@ jobs:
       - name: Build and Publish Windows
         working-directory: ladxhd_game_source_code
         run: |
+          # Framework-dependent: requires .NET Desktop Runtime 6.0
+          # Reduces binary size from ~177MB to ~25MB
           dotnet publish ProjectZ.csproj -c Release -r win-x64 `
             -p:TargetPlatformName=Windows `
             -p:SkipContentBuild=true `
             -p:PublishSingleFile=true `
-            --self-contained true `
+            --self-contained false `
             -o ../publish/Windows
       
       - name: Download Windows Shaders
@@ -296,11 +298,12 @@ jobs:
             ### Installation
             
             #### Windows
-            1. Download and extract `LADXHD-Windows-x64.zip`
-            2. Place your **Link's Awakening DX HD v1.0.0** zip file in the same folder as the game executable
+            1. **Install [.NET Desktop Runtime 6.0](https://dotnet.microsoft.com/download/dotnet/6.0/runtime)** if not already installed
+            2. Download and extract `LADXHD-Windows-x64.zip`
+            3. Place your **Link's Awakening DX HD v1.0.0** zip file in the same folder as the game executable
                - Supported names: `Links Awakening DX HD v1.0.0.zip`, `LADXHD v1.0.0.zip`, `v1.0.0.zip`, etc.
                - Or copy the extracted `Content` and `Data` folders directly
-            3. Run the game - everything is automatic!
+            4. Run the game - everything is automatic!
                - The v1.0.0 archive will be extracted automatically
                - Shaders will be installed from `Shaders-Windows/`
                - Assets will be patched on first launch
@@ -333,7 +336,7 @@ jobs:
             
             | Platform | Binary | Shaders | Auto-Setup |
             |----------|--------|---------|------------|
-            | Windows | Self-contained .exe | DirectX (in `Shaders-Windows/`) | Zip extraction + Content/Data patching |
+            | Windows | Requires [.NET Desktop 6](https://dotnet.microsoft.com/download/dotnet/6.0/runtime) | DirectX (in `Shaders-Windows/`) | Zip extraction + Content/Data patching |
             | Linux | Self-contained binary | OpenGL (in `Shaders-DesktopGL/`) | Zip extraction + Data patching* |
             
             *Linux Content patching is skipped because v1.0.0 Content has Windows XNB format. The bundled DesktopGL shaders replace the incompatible Windows shaders.
@@ -350,6 +353,9 @@ jobs:
             ---
             
             ### Troubleshooting
+            
+            **Game won't start / "Framework not found" (Windows)**
+            - Install [.NET Desktop Runtime 6.0](https://dotnet.microsoft.com/download/dotnet/6.0/runtime)
             
             **"MGFX effect was built for a different platform"**
             - The DesktopGL shaders weren't installed. Check that `Shaders-DesktopGL/` folder exists and run the game again.
@@ -371,7 +377,7 @@ jobs:
             
             | Platform | File | Size |
             |----------|------|------|
-            | Windows x64 | `LADXHD-Windows-x64.zip` | ~50MB |
+            | Windows x64 | `LADXHD-Windows-x64.zip` | ~25MB |
             | Linux x64 | `LADXHD-Linux-x64.tar.gz` | ~50MB |
           files: |
             ./release/LADXHD-Windows-x64.zip

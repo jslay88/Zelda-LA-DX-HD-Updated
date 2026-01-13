@@ -32,8 +32,10 @@ check_dotnet() {
 }
 
 build_windows() {
-    echo_info "Building for Windows (win-x64)..."
-    dotnet publish -c Release -r win-x64 -p:TargetPlatformName=Windows -p:PublishSingleFile=true --self-contained true -o Publish/Windows
+    echo_info "Building for Windows (win-x64, framework-dependent)..."
+    # Framework-dependent: users must have .NET Desktop 6 installed
+    # This reduces binary size from ~177MB to ~25MB
+    dotnet publish -c Release -r win-x64 -p:TargetPlatformName=Windows -p:PublishSingleFile=true --self-contained false -o Publish/Windows
     echo_info "Windows build complete: Publish/Windows/"
 }
 

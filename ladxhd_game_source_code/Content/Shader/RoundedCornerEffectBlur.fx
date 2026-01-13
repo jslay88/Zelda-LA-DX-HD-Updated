@@ -27,7 +27,7 @@ int textureWidth, textureHeight;
 float4 PixelShaderFunction(float4 pos : SV_Position, float4 color1 : COLOR0, float2 coords : TEXCOORD0) : COLOR0
 {
 	#if OPENGL
-	pos.y = height - pos.y;
+	pos.y = textureHeight - pos.y;
 	#endif
 
 	float posX = coords.x * width;

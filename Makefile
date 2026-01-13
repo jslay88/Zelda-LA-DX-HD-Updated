@@ -147,6 +147,35 @@ shaders-linux: install-mgcb setup-wine
 shaders: shaders-windows shaders-linux
 	@echo "$(GREEN)✓ All shaders compiled$(NC)"
 
+# Clean shader cache (forces recompilation)
+clean-shaders:
+	@echo "$(YELLOW)Cleaning shader cache...$(NC)"
+	@rm -rf $(CONTENT_DIR)/bin/Windows/Shader $(CONTENT_DIR)/obj/Windows
+	@rm -rf $(CONTENT_DIR)/bin/DesktopGL/Shader $(CONTENT_DIR)/obj/DesktopGL
+	@echo "$(GREEN)✓ Shader cache cleaned$(NC)"
+
+# Force rebuild shaders (clean + build)
+rebuild-shaders-linux: clean-shaders shaders-linux
+	@echo "$(GREEN)✓ Linux shaders rebuilt$(NC)"
+
+rebuild-shaders-windows: clean-shaders shaders-windows
+	@echo "$(GREEN)✓ Windows shaders rebuilt$(NC)"
+
+rebuild-shaders: clean-shaders shaders
+	@echo "$(GREEN)✓ All shaders rebuilt$(NC)"
+
+# Update shaders in existing test environment
+test-update-shaders-linux: rebuild-shaders-linux
+	@if [ -d "test/Linux" ]; then \
+		echo "$(CYAN)Updating shaders in test/Linux...$(NC)"; \
+		mkdir -p test/Linux/Shaders-DesktopGL; \
+		cp $(CONTENT_DIR)/bin/DesktopGL/Shader/*.xnb test/Linux/Shaders-DesktopGL/; \
+		cp $(CONTENT_DIR)/bin/DesktopGL/Shader/*.xnb test/Linux/Content/Shader/ 2>/dev/null || true; \
+		echo "$(GREEN)✓ Shaders updated in test/Linux/$(NC)"; \
+	else \
+		echo "$(RED)test/Linux doesn't exist. Run 'make test-linux' first.$(NC)"; \
+	fi
+
 # =============================================================================
 # Test Environment Setup
 # =============================================================================

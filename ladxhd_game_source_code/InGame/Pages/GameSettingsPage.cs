@@ -75,12 +75,6 @@ namespace ProjectZ.InGame.Pages
                 newState => { GameSettings.ItemsOnRight = newState; });
             _contentLayout.AddElement(toggleItemSlotSide);
 
-            // Button: Epilepsy Safe
-            var toggleEpilepsySafe = InterfaceToggle.GetToggleButton(new Point(buttonWidth, buttonHeight), new Point(5, 2),
-                "settings_game_epilepsysafe", GameSettings.EpilepsySafe,
-                newState => { GameSettings.EpilepsySafe = newState; });
-            _contentLayout.AddElement(toggleEpilepsySafe);
-
             // Bottom Bar / Back Button:
             _bottomBar = new InterfaceListLayout() { Size = new Point(width, (int)(height * Values.MenuFooterSize)), Selectable = true, HorizontalMode = true };
             _bottomBar.AddElement(new InterfaceButton(new Point(100, 18), new Point(2, 4), "settings_menu_back", element => { Game1.UiPageManager.PopPage(); }));
@@ -186,7 +180,6 @@ namespace ProjectZ.InGame.Pages
                 case 4: { tooltip = Game1.LanguageManager.GetString("tooltip_game_saveposition", "error"); break; }
                 case 5: { tooltip = Game1.LanguageManager.GetString("tooltip_game_autosave", "error"); break; }
                 case 6: { tooltip = Game1.LanguageManager.GetString("tooltip_game_itemsonright", "error"); break; }
-                case 7: { tooltip = Game1.LanguageManager.GetString("tooltip_game_epilepsysafe", "error"); break; }
             }
             // Display the tooltip in the tooltip window.
             return tooltip;

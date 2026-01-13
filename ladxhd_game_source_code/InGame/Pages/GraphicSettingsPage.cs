@@ -31,7 +31,7 @@ namespace ProjectZ.InGame.Pages
 
             _graphicSettingsLayout.AddElement(new InterfaceLabel(Resources.GameHeaderFont, "settings_graphics_header",
                 new Point(buttonWidth, (int)(height * Values.MenuHeaderSize)), new Point(0, 0)));
-            _contentLayout = new InterfaceListLayout { Size = new Point(width, (int)(height * Values.MenuContentSize) - 12), Selectable = true, ContentAlignment = InterfaceElement.Gravities.Top };
+            _contentLayout = new InterfaceListLayout { Size = new Point(width, (int)(height * Values.MenuContentSize) + 12), Selectable = true, ContentAlignment = InterfaceElement.Gravities.Top };
 
             // Slider: Game Scale
             _gameScaleSlider = new InterfaceSlider(Resources.GameFont, "settings_graphics_game_scale",
@@ -82,6 +82,12 @@ namespace ProjectZ.InGame.Pages
                 "settings_graphics_fps_lock", GameSettings.VerticalSync,
                 newState => { GameSettings.VerticalSync = newState; Game1.FpsSettingChanged = true; });
             _contentLayout.AddElement(toggleFpsLock);
+
+            // Button: Epilepsy Safe
+            var toggleEpilepsySafe = InterfaceToggle.GetToggleButton(new Point(buttonWidth, buttonHeight), new Point(5, 2),
+                "settings_graphics_epilepsysafe", GameSettings.EpilepsySafe,
+                newState => { GameSettings.EpilepsySafe = newState; });
+            _contentLayout.AddElement(toggleEpilepsySafe);
 
             // Bottom Bar / Back Button:
             _bottomBar = new InterfaceListLayout { Size = new Point(width, (int)(height * Values.MenuFooterSize)), Selectable = true, HorizontalMode = true };
@@ -202,6 +208,7 @@ namespace ProjectZ.InGame.Pages
                 case 5: { tooltip = Game1.LanguageManager.GetString("tooltip_graphics_noobjectlights", "error"); break; }
                 case 6: { tooltip = Game1.LanguageManager.GetString("tooltip_graphics_shadow", "error"); break; }
                 case 7: { tooltip = Game1.LanguageManager.GetString("tooltip_graphics_fps_lock", "error"); break; }
+                case 8: { tooltip = Game1.LanguageManager.GetString("tooltip_graphics_epilepsysafe", "error"); break; }
             }
             // Display the tooltip in the tooltip window.
             return tooltip;
